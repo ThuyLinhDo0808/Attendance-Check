@@ -72,7 +72,7 @@ export default function App() {
         </nav>
 
         <div className="px-6 py-4 border-t border-white/10 text-xs text-slate-500">
-          Rate: 5,000 VNĐ / 15-min block
+          Rate: 10,000 VNĐ / 15-min block
           <br />
           Fines are proportional — never rounded up.
         </div>

@@ -149,7 +149,11 @@ export default function EmployeeFineSheet() {
       </div>
 
       {selectedId && (
-        <EmployeeModal employeeId={selectedId} onClose={() => setSelectedId(null)} />
+        <EmployeeModal
+          employeeId={selectedId}
+          onClose={() => setSelectedId(null)}
+          onChanged={() => api.getFineSheet(month || undefined).then(setRows).catch((err) => setError(err.message))}
+        />
       )}
     </div>
   );

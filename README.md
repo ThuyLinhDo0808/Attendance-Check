@@ -17,8 +17,8 @@ attendance-app/
 - **Fine blocks:** `minutes_late / 15` — an *exact* fraction, never rounded up.
   - 5 min late → 5/15 = **0.33** blocks
   - 16 min late → 16/15 = **1.07** blocks
-- **Fine amount:** `fine_blocks × 5,000 VNĐ`.
-  - 5 min late → 0.33 × 5,000 = **1,666.67 VNĐ**
+- **Fine amount:** `fine_blocks × 10,000 VNĐ`.
+  - 5 min late → 0.33 × 10,000 = **1,666.67 VNĐ**
 
 All three values (`minutes_late`, `fine_blocks`, `total_fine`) are always
 recomputed **server-side** from the submitted check-in time — the client
@@ -121,7 +121,7 @@ Everything is driven by `backend/.env`:
 ```env
 WORKDAY_START_TIME=08:30
 BLOCK_MINUTES=15
-FINE_PER_BLOCK_VND=5000
+FINE_PER_BLOCK_VND=10000
 ```
 
 Change these and restart the backend — new logs will use the new rule.

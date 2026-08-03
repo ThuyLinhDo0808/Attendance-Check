@@ -13,8 +13,13 @@ function previewFine(checkInTime) {
   if (!checkInTime) return null;
   const [h, m] = checkInTime.split(':').map(Number);
   const [sh, sm] = WORKDAY_START.split(':').map(Number);
+  
+  // Calculate total minutes late
   const minutesLate = Math.max(0, h * 60 + m - (sh * 60 + sm));
-  const fineBlocks = minutesLate / 15;
+  
+  // CHANGED: Use Math.floor() to match the new backend grace-period logic
+  const fineBlocks = Math.floor(minutesLate / 15);
+  
   const totalFine = fineBlocks * 10000;
   return { minutesLate, fineBlocks, totalFine };
 }
