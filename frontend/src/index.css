@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-mono-num {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* subtle ledger grid backdrop used behind hero/summary sections */
+.ledger-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+::selection {
+  background-color: #c7cbfb;
+}
+
+/* visible keyboard focus ring everywhere, per accessibility floor */
+:focus-visible {
+  outline: 2px solid #4f5fea;
+  outline-offset: 2px;
+}
