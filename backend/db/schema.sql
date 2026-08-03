@@ -7,14 +7,20 @@ DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
 
 -- ------------------------------------------------------------
--- Employees
+-- Employees (Áp dụng SCD Type 2 để lưu lịch sử)
 -- ------------------------------------------------------------
 CREATE TABLE employees (
     id              SERIAL PRIMARY KEY,
     name            VARCHAR(150) NOT NULL,
-    employee_code   VARCHAR(50) UNIQUE NOT NULL,
+    employee_code   VARCHAR(50) NOT NULL, -- Bỏ UNIQUE vì một mã có thể có nhiều dòng lịch sử
     status          VARCHAR(10) NOT NULL DEFAULT 'ACTIVE'
                         CHECK (status IN ('ACTIVE', 'INACTIVE')),
+    
+    -- Các cột theo dõi lịch sử (SCD2)
+    effective_start_date TIMESTAMP NOT NULL DEFAULT NOW(),
+    effective_end_date   TIMESTAMP NULL,
+    is_current           BOOLEAN NOT NULL DEFAULT TRUE,
+    
     created_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -53,9 +59,16 @@ CREATE INDEX idx_attendance_employee ON attendance_logs (employee_id);
 -- since the set of settings may grow without needing new columns.
 -- ------------------------------------------------------------
 CREATE TABLE settings (
-    key             VARCHAR(50) PRIMARY KEY,
+    id              SERIAL PRIMARY KEY, -- Thêm Surrogate Key
+    key             VARCHAR(50) NOT NULL,
     value           VARCHAR(50) NOT NULL,
     description     TEXT,
+    
+    -- Các cột theo dõi lịch sử (SCD2)
+    effective_start_date TIMESTAMP NOT NULL DEFAULT NOW(),
+    effective_end_date   TIMESTAMP NULL,
+    is_current           BOOLEAN NOT NULL DEFAULT TRUE,
+    
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

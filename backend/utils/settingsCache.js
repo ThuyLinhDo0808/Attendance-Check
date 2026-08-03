@@ -19,7 +19,7 @@ const ALLOWED_KEYS = Object.keys(DEFAULTS);
 let cache = null;
 
 async function loadFromDb() {
-  const { rows } = await pool.query('SELECT key, value FROM settings');
+  const { rows } = await pool.query('SELECT key, value FROM settings WHERE is_current = TRUE');
   const map = { ...DEFAULTS };
   for (const row of rows) {
     map[row.key] = row.value;

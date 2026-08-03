@@ -32,7 +32,7 @@ function validate(key, value) {
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT key, value, description, updated_at FROM settings ORDER BY key'
+      'SELECT key, value, description, effective_start_date AS updated_at FROM settings WHERE is_current = TRUE ORDER BY key'
     );
     const byKey = Object.fromEntries(rows.map((r) => [r.key, r]));
     // Guarantee all known keys are present in the response even if a row
@@ -75,17 +75,40 @@ router.put('/', async (req, res, next) => {
     }
 
     await client.query('BEGIN');
+    
     for (const [key, value] of updates) {
+      // BƯỚC 1: Tìm bản ghi hiện tại đang active
+      const currentRes = await client.query(
+        'SELECT value, description FROM settings WHERE key = $1 AND is_current = TRUE',
+        [key]
+      );
+      
+      // Nếu giá trị không thay đổi, bỏ qua để tránh rác database
+      if (currentRes.rows.length > 0 && currentRes.rows[0].value === value) {
+        continue;
+      }
+      
+      const description = currentRes.rows.length > 0 ? currentRes.rows[0].description : null;
+
+      // BƯỚC 2: "Đóng" bản ghi cũ
       await client.query(
-        'UPDATE settings SET value = $1, updated_at = NOW() WHERE key = $2',
-        [value, key]
+        'UPDATE settings SET effective_end_date = NOW(), is_current = FALSE WHERE key = $1 AND is_current = TRUE',
+        [key]
+      );
+
+      // BƯỚC 3: "Mở" bản ghi mới
+      await client.query(
+        `INSERT INTO settings (key, value, description, effective_start_date, is_current) 
+         VALUES ($1, $2, $3, NOW(), TRUE)`,
+        [key, value, description]
       );
     }
+    
     await client.query('COMMIT');
     invalidate();
 
     const { rows } = await pool.query(
-      'SELECT key, value, description, updated_at FROM settings ORDER BY key'
+      'SELECT key, value, description, effective_start_date AS updated_at FROM settings WHERE is_current = TRUE ORDER BY key'
     );
     res.json(rows);
   } catch (err) {
