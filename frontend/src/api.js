@@ -19,6 +19,8 @@ export const api = {
   getEmployees: (status) => request(`/employees${status ? `?status=${status}` : ''}`),
   createEmployee: (payload) =>
     request('/employees', { method: 'POST', body: JSON.stringify(payload) }),
+  updateEmployee: (id, payload) =>
+    request(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
   logAttendance: (payload) =>
     request('/attendance/log', { method: 'POST', body: JSON.stringify(payload) }),

@@ -6,12 +6,14 @@ import CompanyAnalytics from './components/CompanyAnalytics.jsx';
 import EmployeeFineSheet from './components/EmployeeFineSheet.jsx';
 import Settings from './components/Settings.jsx';
 import WeeklyReport from './components/WeeklyReport.jsx';
+import EmployeeManager from './components/EmployeeManager.jsx';
 
 const TABS = [
   { id: 'logger', label: 'Attendance Logger', glyph: '⏱' },
   { id: 'analytics', label: 'Company Analytics', glyph: '▤' },
   { id: 'weekly', label: 'Weekly Report', glyph: '📅' },
   { id: 'sheet', label: 'Employee Fine Sheet', glyph: '≣' },
+  { id: 'employees', label: 'Employees', glyph: '👥' },
   { id: 'settings', label: 'Settings', glyph: '⚙' },
 ];
 
@@ -125,6 +127,15 @@ export default function App() {
           {activeTab === 'analytics' && <CompanyAnalytics />}
           {activeTab === 'weekly' && <WeeklyReport />}
           {activeTab === 'sheet' && <EmployeeFineSheet />}
+          {activeTab === 'employees' && (
+            <EmployeeManager 
+              employees={employees} 
+              onEmployeeAdded={() => {
+                showToast('New employee added.');
+                loadEmployees(); // Reload the employee list immediately
+              }} 
+            />
+          )}
           {activeTab === 'settings' && (
             <Settings
               onSaved={() => {
