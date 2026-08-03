@@ -46,4 +46,12 @@ export const api = {
     const params = new URLSearchParams({ month, format, report });
     return `${BASE_URL}/export/monthly?${params.toString()}`;
   },
+
+  getAnalyticsByRange: (start_date, end_date) => 
+    request(`/analytics/range?start_date=${start_date}&end_date=${end_date}`),
+
+  exportRangeUrl: ({ start_date, end_date, format = 'csv' }) => {
+    const params = new URLSearchParams({ start_date, end_date, format });
+    return `${BASE_URL}/export/range?${params.toString()}`;
+  },
 };

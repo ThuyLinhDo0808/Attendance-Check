@@ -224,4 +224,40 @@ router.get('/trends', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/analytics/range?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+ * Lấy chi tiết lịch sử điểm danh của mọi người trong một khoảng thời gian (VD: 1 tuần)
+ */
+router.get('/range', async (req, res, next) => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({ error: 'start_date and end_date are required' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT 
+         al.id,
+         al.work_date,
+         al.check_in_time,
+         al.minutes_late,
+         al.fine_blocks,
+         al.total_fine,
+         e.name AS employee_name,
+         e.employee_code
+       FROM attendance_logs al
+       JOIN employees e ON e.id = al.employee_id
+       WHERE al.work_date >= $1::date AND al.work_date <= $2::date
+         AND al.minutes_late > 0 -- Chỉ lấy những người đi muộn để báo cáo
+       ORDER BY al.work_date DESC, al.minutes_late DESC`,
+      [start_date, end_date]
+    );
+
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

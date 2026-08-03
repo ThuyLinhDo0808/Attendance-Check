@@ -33,3 +33,30 @@ export function formatTime(timeStr) {
   if (!timeStr) return '—';
   return timeStr.slice(0, 5);
 }
+
+export function currentWeekValue() {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${weekNo.toString().padStart(2, '0')}`;
+}
+
+export function weekToDates(weekStr) {
+  if (!weekStr) return null;
+  const [year, week] = weekStr.split('-W').map(Number);
+  const simple = new Date(year, 0, 1 + (week - 1) * 7);
+  const dow = simple.getDay();
+  const ISOweekStart = simple;
+  if (dow <= 4) ISOweekStart.setDate(simple.getDate() - simple.getDay() + 1);
+  else ISOweekStart.setDate(simple.getDate() + 8 - simple.getDay());
+  
+  const start = new Date(ISOweekStart);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  
+  return {
+    start_date: start.toISOString().slice(0, 10),
+    end_date: end.toISOString().slice(0, 10),
+  };
+}

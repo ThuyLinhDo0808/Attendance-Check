@@ -5,10 +5,12 @@ import AttendanceLogger from './components/AttendanceLogger.jsx';
 import CompanyAnalytics from './components/CompanyAnalytics.jsx';
 import EmployeeFineSheet from './components/EmployeeFineSheet.jsx';
 import Settings from './components/Settings.jsx';
+import WeeklyReport from './components/WeeklyReport.jsx';
 
 const TABS = [
   { id: 'logger', label: 'Attendance Logger', glyph: '⏱' },
   { id: 'analytics', label: 'Company Analytics', glyph: '▤' },
+  { id: 'weekly', label: 'Weekly Report', glyph: '📅' },
   { id: 'sheet', label: 'Employee Fine Sheet', glyph: '≣' },
   { id: 'settings', label: 'Settings', glyph: '⚙' },
 ];
@@ -121,6 +123,7 @@ export default function App() {
             <AttendanceLogger employees={employees} onLogged={() => showToast('Attendance logged.')} />
           )}
           {activeTab === 'analytics' && <CompanyAnalytics />}
+          {activeTab === 'weekly' && <WeeklyReport />}
           {activeTab === 'sheet' && <EmployeeFineSheet />}
           {activeTab === 'settings' && (
             <Settings

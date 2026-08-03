@@ -203,4 +203,81 @@ router.get('/monthly', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/export/range?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&format=csv|xlsx
+ */
+router.get('/range', async (req, res, next) => {
+  try {
+    const { start_date, end_date } = req.query;
+    const format = (req.query.format || 'csv').toLowerCase();
+    
+    if (!start_date || !end_date) {
+      return res.status(400).json({ error: 'start_date and end_date are required' });
+    }
+
+    const { rows: detail } = await pool.query(
+      `SELECT e.employee_code, e.name AS employee_name, al.work_date, al.check_in_time,
+              al.minutes_late, al.total_fine, al.note
+       FROM attendance_logs al
+       JOIN employees e ON e.id = al.employee_id
+       WHERE al.work_date >= $1::date AND al.work_date <= $2::date
+         AND al.minutes_late > 0
+       ORDER BY al.work_date ASC, al.minutes_late DESC`,
+      [start_date, end_date]
+    );
+
+    if (format === 'xlsx') {
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Attendance App';
+      const sheet = workbook.addWorksheet('Weekly Late Report');
+      
+      sheet.columns = [
+        { header: 'Date', key: 'work_date', width: 12 },
+        { header: 'Employee Code', key: 'employee_code', width: 14 },
+        { header: 'Employee Name', key: 'employee_name', width: 25 },
+        { header: 'Check-in', key: 'check_in_time', width: 10 },
+        { header: 'Minutes Late', key: 'minutes_late', width: 12 },
+        { header: 'Total Fine (VND)', key: 'total_fine', width: 16 },
+        { header: 'Note', key: 'note', width: 30 },
+      ];
+
+      detail.forEach(row => {
+        sheet.addRow({
+          work_date: new Date(row.work_date).toLocaleDateString('en-GB'),
+          employee_code: row.employee_code,
+          employee_name: row.employee_name,
+          check_in_time: row.check_in_time ? String(row.check_in_time).slice(0, 5) : '',
+          minutes_late: Number(row.minutes_late),
+          total_fine: Number(row.total_fine),
+          note: row.note || '',
+        });
+      });
+
+      sheet.getRow(1).font = { bold: true };
+      sheet.getColumn('total_fine').numFmt = '#,##0';
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="weekly-late-${start_date}-to-${end_date}.xlsx"`);
+      await workbook.xlsx.write(res);
+      return res.end();
+    }
+
+    // Luồng CSV
+    const lines = ['work_date,employee_code,employee_name,check_in_time,minutes_late,total_fine_vnd,note'];
+    for (const row of detail) {
+      lines.push([
+        csvEscape(row.work_date), csvEscape(row.employee_code), csvEscape(row.employee_name),
+        csvEscape(row.check_in_time ? String(row.check_in_time).slice(0, 5) : ''),
+        csvEscape(row.minutes_late), csvEscape(Number(row.total_fine).toFixed(2)), csvEscape(row.note || '')
+      ].join(','));
+    }
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="weekly-late-${start_date}-to-${end_date}.csv"`);
+    res.send('\uFEFF' + lines.join('\r\n') + '\r\n');
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
