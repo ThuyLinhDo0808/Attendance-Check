@@ -20,27 +20,40 @@ const router = express.Router();
  */
 router.post('/log', async (req, res, next) => {
   try {
-    const { employee_id, work_date, check_in_time, check_out_time, note } = req.body;
+    const { employee_id, work_date, check_in_time, check_out_time, note, is_exempt } = req.body;
 
-    if (!employee_id || !work_date || !check_in_time) {
-      return res
-        .status(400)
-        .json({ error: 'employee_id, work_date and check_in_time are required' });
+    if (!employee_id || !work_date) {
+      return res.status(400).json({ error: 'employee_id and work_date are required' });
+    }
+    
+    // Nếu KHÔNG được miễn trừ, thì bắt buộc phải có giờ check-in
+    if (!is_exempt && !check_in_time) {
+      return res.status(400).json({ error: 'check_in_time is required unless exempted' });
     }
 
-    // Confirm the employee exists up front for a clean 404 instead of an FK error.
     const empCheck = await pool.query('SELECT id FROM employees WHERE id = $1', [employee_id]);
     if (empCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    const settings = await getSettings();
-    const { minutes_late, fine_blocks, total_fine } = calculateLateness(check_in_time, settings);
+    // Khởi tạo các giá trị mặc định là 0 (Dùng cho trường hợp Miễn trừ)
+    let minutes_late = 0;
+    let fine_blocks = 0;
+    let total_fine = 0;
+
+    // Chỉ tính phạt nếu KHÔNG được miễn trừ và CÓ nhập giờ check-in
+    if (!is_exempt && check_in_time) {
+      const settings = await getSettings();
+      const computed = calculateLateness(check_in_time, settings);
+      minutes_late = computed.minutes_late;
+      fine_blocks = computed.fine_blocks;
+      total_fine = computed.total_fine;
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO attendance_logs
-         (employee_id, work_date, check_in_time, check_out_time, minutes_late, fine_blocks, total_fine, note, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+         (employee_id, work_date, check_in_time, check_out_time, minutes_late, fine_blocks, total_fine, note, is_exempt, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
        ON CONFLICT (employee_id, work_date)
        DO UPDATE SET
          check_in_time = EXCLUDED.check_in_time,
@@ -49,9 +62,20 @@ router.post('/log', async (req, res, next) => {
          fine_blocks = EXCLUDED.fine_blocks,
          total_fine = EXCLUDED.total_fine,
          note = EXCLUDED.note,
+         is_exempt = EXCLUDED.is_exempt,
          updated_at = NOW()
        RETURNING *`,
-      [employee_id, work_date, check_in_time, check_out_time || null, minutes_late, fine_blocks, total_fine, note || null]
+      [
+        employee_id, 
+        work_date, 
+        check_in_time || null, 
+        check_out_time || null, 
+        minutes_late, 
+        fine_blocks, 
+        total_fine, 
+        note || null, 
+        is_exempt || false
+      ]
     );
 
     res.status(201).json(rows[0]);

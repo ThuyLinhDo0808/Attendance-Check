@@ -37,12 +37,19 @@ CREATE TABLE attendance_logs (
     id              SERIAL PRIMARY KEY,
     employee_id     INT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     work_date       DATE NOT NULL,
-    check_in_time   TIME NOT NULL,
+    
+    -- Cho phép NULL đối với check_in_time trong trường hợp miễn trừ
+    check_in_time   TIME NULL, 
     check_out_time  TIME NULL,
+    
     minutes_late    INT NOT NULL DEFAULT 0,
     fine_blocks     NUMERIC(6, 2) NOT NULL DEFAULT 0,
     total_fine      NUMERIC(10, 2) NOT NULL DEFAULT 0,
     note            TEXT,
+    
+    -- Thêm cờ đánh dấu miễn trừ (nghỉ phép, xin phép...)
+    is_exempt       BOOLEAN NOT NULL DEFAULT FALSE,
+    
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_employee_workdate UNIQUE (employee_id, work_date)

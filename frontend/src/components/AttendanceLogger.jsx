@@ -24,6 +24,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
     check_in_time: '',
     check_out_time: '',
     note: '',
+    is_exempt: false,
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -63,8 +64,8 @@ export default function AttendanceLogger({ employees, onLogged }) {
     e.preventDefault();
     setError(null);
 
-    if (!form.employee_id || !form.work_date || !form.check_in_time) {
-      setError('Employee, date, and check-in time are required.');
+    if (!form.employee_id || !form.work_date || (!form.is_exempt && !form.check_in_time)) {
+      setError('Employee, date, and check-in time are required (unless exempted).');
       return;
     }
 
@@ -76,6 +77,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
         check_in_time: form.check_in_time,
         check_out_time: form.check_out_time || null,
         note: form.note || null,
+        is_exempt: form.is_exempt,
       };
       const saved = await api.logAttendance(payload);
       setResult(saved);
@@ -152,6 +154,20 @@ export default function AttendanceLogger({ employees, onLogged }) {
                 onChange={(e) => update('check_out_time', e.target.value)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
               />
+            </div>
+
+            <div className="sm:col-span-2 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.is_exempt}
+                  onChange={(e) => update('is_exempt', e.target.checked)}
+                  className="rounded border-slate-300 text-accent focus:ring-accent w-4 h-4"
+                />
+                <span className="text-sm font-medium text-slate-700">
+                  Miễn trừ phạt (Nghỉ phép, Đã xin phép, Lý do hợp lệ...)
+                </span>
+              </label>
             </div>
           </div>
 
