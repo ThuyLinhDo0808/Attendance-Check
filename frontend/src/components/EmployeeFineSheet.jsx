@@ -38,22 +38,47 @@ export default function EmployeeFineSheet() {
             Every employee, all-time or scoped to a month. Click a row for full history.
           </p>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Scope</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
-            />
-            {month && (
-              <button
-                onClick={() => setMonth('')}
-                className="text-xs text-slate-500 hover:text-slate-800 underline"
-              >
-                Clear
-              </button>
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Scope</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+              />
+              {month && (
+                <button
+                  onClick={() => setMonth('')}
+                  className="text-xs text-slate-500 hover:text-slate-800 underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Export {month ? formatMonthLabel(month) : ''}
+            </label>
+            {month ? (
+              <div className="flex gap-2">
+                <a
+                  href={api.exportMonthlyUrl({ month, format: 'csv', report: 'summary' })}
+                  className="inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  CSV
+                </a>
+                <a
+                  href={api.exportMonthlyUrl({ month, format: 'xlsx' })}
+                  className="inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Excel
+                </a>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 py-2">Pick a month to export</p>
             )}
           </div>
         </div>

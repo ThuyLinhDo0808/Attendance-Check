@@ -1,19 +1,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { api } from './api';
+import { formatVND } from './utils/format';
 import AttendanceLogger from './components/AttendanceLogger.jsx';
 import CompanyAnalytics from './components/CompanyAnalytics.jsx';
 import EmployeeFineSheet from './components/EmployeeFineSheet.jsx';
+import Settings from './components/Settings.jsx';
 
 const TABS = [
   { id: 'logger', label: 'Attendance Logger', glyph: '⏱' },
   { id: 'analytics', label: 'Company Analytics', glyph: '▤' },
   { id: 'sheet', label: 'Employee Fine Sheet', glyph: '≣' },
+  { id: 'settings', label: 'Settings', glyph: '⚙' },
 ];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('logger');
   const [employees, setEmployees] = useState([]);
   const [employeesError, setEmployeesError] = useState(null);
+  const [sidebarSettings, setSidebarSettings] = useState(null);
   const [toast, setToast] = useState(null);
 
   const loadEmployees = useCallback(async () => {
@@ -26,9 +30,19 @@ export default function App() {
     }
   }, []);
 
+  const loadSidebarSettings = useCallback(async () => {
+    try {
+      const rows = await api.getSettings();
+      setSidebarSettings(Object.fromEntries(rows.map((r) => [r.key, r.value])));
+    } catch {
+      // sidebar just falls back to showing nothing extra; not critical path
+    }
+  }, []);
+
   useEffect(() => {
     loadEmployees();
-  }, [loadEmployees]);
+    loadSidebarSettings();
+  }, [loadEmployees, loadSidebarSettings]);
 
   const showToast = useCallback((message, tone = 'ok') => {
     setToast({ message, tone, key: Date.now() });
@@ -42,7 +56,9 @@ export default function App() {
       <aside className="w-64 shrink-0 bg-ledger-950 text-slate-200 flex flex-col">
         <div className="px-6 py-6 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <span className="font-mono-num text-accent text-lg font-bold">08:30</span>
+            <span className="font-mono-num text-accent text-lg font-bold">
+              {sidebarSettings?.workday_start_time || '—'}
+            </span>
             <span className="text-xs uppercase tracking-widest text-slate-400">cutoff</span>
           </div>
           <h1 className="mt-2 text-lg font-bold text-white leading-tight">
@@ -72,9 +88,23 @@ export default function App() {
         </nav>
 
         <div className="px-6 py-4 border-t border-white/10 text-xs text-slate-500">
-          Rate: 10,000 VNĐ / 15-min block
+          {sidebarSettings ? (
+            <>
+              Rate: {formatVND(sidebarSettings.fine_per_block_vnd)} /{' '}
+              {sidebarSettings.block_minutes}-min block
+            </>
+          ) : (
+            'Loading rate…'
+          )}
           <br />
           Fines are proportional — never rounded up.
+          <br />
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="mt-1 text-accent hover:underline"
+          >
+            Change in Settings →
+          </button>
         </div>
       </aside>
 
@@ -92,6 +122,14 @@ export default function App() {
           )}
           {activeTab === 'analytics' && <CompanyAnalytics />}
           {activeTab === 'sheet' && <EmployeeFineSheet />}
+          {activeTab === 'settings' && (
+            <Settings
+              onSaved={() => {
+                showToast('Settings updated.');
+                loadSidebarSettings();
+              }}
+            />
+          )}
         </div>
       </main>
 

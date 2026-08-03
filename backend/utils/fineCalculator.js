@@ -1,15 +1,13 @@
 /**
  * Core business logic for lateness + fine calculation.
  *
- * Workday start time, block size, and rate per block are all
- * adjustable via environment variables (see .env.example) so the
- * rule can change without touching this module.
+ * This is a pure function: it takes the current settings (workday start
+ * time, block size, rate per block) as an argument rather than reading
+ * them itself, so the calculation is easy to test and has no hidden
+ * dependency on the database or environment. Callers fetch settings via
+ * utils/settingsCache.js (which reads the `settings` table — see the
+ * Settings tab in the admin UI) and pass them in here.
  */
-require('dotenv').config();
-
-const WORKDAY_START_TIME = process.env.WORKDAY_START_TIME || '08:30';
-const BLOCK_MINUTES = Number(process.env.BLOCK_MINUTES) || 15;
-const FINE_PER_BLOCK_VND = Number(process.env.FINE_PER_BLOCK_VND) || 10000;
 
 /**
  * Converts a "HH:MM" or "HH:MM:SS" string into minutes-since-midnight.
@@ -19,28 +17,34 @@ function timeToMinutes(timeStr) {
   return h * 60 + m;
 }
 
+function round2(num) {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
 /**
- * Given a check-in time string ("HH:MM" or "HH:MM:SS"), returns the
- * computed lateness fields.
+ * Given a check-in time string ("HH:MM" or "HH:MM:SS") and the current
+ * settings, returns the computed lateness fields.
  *
  * minutes_late is always a non-negative integer (early/on-time = 0).
- * fine_blocks is the EXACT proportional value (minutes_late / 15),
- * never rounded up — e.g. 16 minutes late = 1.07 blocks, not 2.
+ * fine_blocks is the EXACT proportional value (minutes_late / block_minutes),
+ * never rounded up — e.g. 16 minutes late at a 15-min block = 1.07 blocks,
+ * not 2.
  * total_fine = fine_blocks * rate, rounded to 2 decimal places (VND cents
- * don't really exist, but we keep 2 decimals to preserve exact math and
- * avoid compounding rounding errors; the frontend formats for display).
+ * don't really exist, but 2 decimals preserves exact math and avoids
+ * compounding rounding errors; the frontend formats for display).
+ *
+ * @param {string} checkInTime
+ * @param {{workday_start_time: string, block_minutes: number, fine_per_block_vnd: number}} settings
  */
-function calculateLateness(checkInTime, workdayStart = WORKDAY_START_TIME) {
+function calculateLateness(checkInTime, settings) {
+  const { workday_start_time, block_minutes, fine_per_block_vnd } = settings;
+
   const checkInMinutes = timeToMinutes(checkInTime);
-  const startMinutes = timeToMinutes(workdayStart);
+  const startMinutes = timeToMinutes(workday_start_time);
 
   const minutesLate = Math.max(0, checkInMinutes - startMinutes);
-  
-  // CHANGED: Use Math.floor() to only count complete blocks.
-  // 1-14 mins -> 0 blocks. 15-29 mins -> 1 block.
-  const fineBlocks = Math.floor(minutesLate / BLOCK_MINUTES);
-  
-  const totalFine = fineBlocks * FINE_PER_BLOCK_VND;
+  const fineBlocks = minutesLate / block_minutes;
+  const totalFine = fineBlocks * fine_per_block_vnd;
 
   return {
     minutes_late: minutesLate,
@@ -49,13 +53,8 @@ function calculateLateness(checkInTime, workdayStart = WORKDAY_START_TIME) {
   };
 }
 
-function round2(num) {
-  return Math.round((num + Number.EPSILON) * 100) / 100;
-}
-
 module.exports = {
   calculateLateness,
-  WORKDAY_START_TIME,
-  BLOCK_MINUTES,
-  FINE_PER_BLOCK_VND,
+  timeToMinutes,
+  round2,
 };

@@ -1,12 +1,39 @@
 import React, { useEffect, useState } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from 'recharts';
 import { api } from '../api';
 import { formatVND, formatBlocks, currentMonthValue, formatMonthLabel } from '../utils/format';
+
+const CHART_FINE = '#C2760C'; // matches tailwind fine.DEFAULT
+const CHART_ACCENT = '#4F5FEA'; // matches tailwind accent.DEFAULT
+const CHART_GRID = '#E2E8F0';
+
+const TREND_RANGES = [
+  { label: '3 mo', months: 3 },
+  { label: '6 mo', months: 6 },
+  { label: '12 mo', months: 12 },
+];
 
 export default function CompanyAnalytics() {
   const [month, setMonth] = useState(currentMonthValue());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [trendMonths, setTrendMonths] = useState(6);
+  const [trends, setTrends] = useState(null);
+  const [trendsLoading, setTrendsLoading] = useState(true);
+  const [trendsError, setTrendsError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,25 +55,53 @@ export default function CompanyAnalytics() {
     };
   }, [month]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setTrendsLoading(true);
+    setTrendsError(null);
+    api
+      .getTrends(trendMonths)
+      .then((res) => {
+        if (!cancelled) setTrends(res);
+      })
+      .catch((err) => {
+        if (!cancelled) setTrendsError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setTrendsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trendMonths]);
+
   const lateWorkers = data?.leaderboard || [];
+  const trendChartData = (trends || []).map((t) => ({
+    ...t,
+    monthLabel: formatMonthLabel(t.month).replace(/\s\d{4}$/, ''), // "January" instead of "January 2026" to keep axis compact
+  }));
+  const barChartData = lateWorkers.slice(0, 12); // keep bar chart legible if the roster is large
 
   return (
     <div>
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Department Analytics</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Company Analytics</h2>
           <p className="text-sm text-slate-500 mt-1">
             Aggregate lateness and fine totals for {formatMonthLabel(month)}.
           </p>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
-          />
+        <div className="flex items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+            />
+          </div>
+          <ExportButtons month={month} />
         </div>
       </header>
 
@@ -80,6 +135,142 @@ export default function CompanyAnalytics() {
                 tone="neutral"
               />
             </div>
+
+            {/* Trend charts */}
+            <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900">Lateness trend</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Track whether recent policy changes are reducing lateness over time.
+                  </p>
+                </div>
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                  {TREND_RANGES.map((r) => (
+                    <button
+                      key={r.months}
+                      onClick={() => setTrendMonths(r.months)}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                        trendMonths === r.months
+                          ? 'bg-accent text-white'
+                          : 'bg-white text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {trendsError ? (
+                <p className="text-sm text-fine">{trendsError}</p>
+              ) : trendsLoading ? (
+                <p className="text-sm text-slate-400">Loading trend…</p>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">
+                      Late check-ins per month
+                    </p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={trendChartData} margin={{ left: -20 }}>
+                        <CartesianGrid stroke={CHART_GRID} vertical={false} />
+                        <XAxis
+                          dataKey="monthLabel"
+                          tick={{ fontSize: 11, fill: '#64748B' }}
+                          axisLine={{ stroke: CHART_GRID }}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: '#64748B' }}
+                          axisLine={false}
+                          tickLine={false}
+                          allowDecimals={false}
+                        />
+                        <Tooltip
+                          formatter={(value) => [value, 'Late check-ins']}
+                          labelFormatter={(label) => label}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="total_late_checkins"
+                          stroke={CHART_FINE}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="Late check-ins"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-2">
+                      Total fines collected per month (VNĐ)
+                    </p>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <LineChart data={trendChartData} margin={{ left: -20 }}>
+                        <CartesianGrid stroke={CHART_GRID} vertical={false} />
+                        <XAxis
+                          dataKey="monthLabel"
+                          tick={{ fontSize: 11, fill: '#64748B' }}
+                          axisLine={{ stroke: CHART_GRID }}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: '#64748B' }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
+                        />
+                        <Tooltip formatter={(value) => [formatVND(value), 'Fines collected']} />
+                        <Line
+                          type="monotone"
+                          dataKey="total_fine_collected"
+                          stroke={CHART_ACCENT}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          name="Fines collected"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* Bar chart: comparison across employees for the selected month */}
+            {barChartData.length > 0 && (
+              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-8">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Late employees comparison — {formatMonthLabel(month)}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 mb-4">
+                  Total fine amount by employee, worst first.
+                </p>
+                <ResponsiveContainer width="100%" height={Math.max(220, barChartData.length * 34)}>
+                  <BarChart data={barChartData} layout="vertical" margin={{ left: 10 }}>
+                    <CartesianGrid stroke={CHART_GRID} horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: '#64748B' }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={120}
+                      tick={{ fontSize: 11, fill: '#334155' }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip formatter={(value) => [formatVND(value), 'Total fine']} />
+                    <Bar dataKey="total_fine" fill={CHART_FINE} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </section>
+            )}
 
             {/* Late workers — the whole point of this dashboard */}
             <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -150,6 +341,28 @@ export default function CompanyAnalytics() {
           </>
         )
       )}
+    </div>
+  );
+}
+
+function ExportButtons({ month }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-500 mb-1">Export this month</label>
+      <div className="flex gap-2">
+        <a
+          href={api.exportMonthlyUrl({ month, format: 'csv', report: 'detail' })}
+          className="inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          CSV
+        </a>
+        <a
+          href={api.exportMonthlyUrl({ month, format: 'xlsx' })}
+          className="inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          Excel
+        </a>
+      </div>
     </div>
   );
 }

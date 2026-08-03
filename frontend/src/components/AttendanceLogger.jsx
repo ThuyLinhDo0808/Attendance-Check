@@ -1,26 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { formatVNDExact, formatBlocks } from '../utils/format';
 import LateWorkersPanel from './LateWorkersPanel.jsx';
-
-const WORKDAY_START = '08:30'; // mirrors backend default; used only for the live preview
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function previewFine(checkInTime) {
-  if (!checkInTime) return null;
+function previewFine(checkInTime, settings) {
+  if (!checkInTime || !settings) return null;
   const [h, m] = checkInTime.split(':').map(Number);
-  const [sh, sm] = WORKDAY_START.split(':').map(Number);
-  
-  // Calculate total minutes late
+  const [sh, sm] = settings.workday_start_time.split(':').map(Number);
   const minutesLate = Math.max(0, h * 60 + m - (sh * 60 + sm));
-  
-  // CHANGED: Use Math.floor() to match the new backend grace-period logic
-  const fineBlocks = Math.floor(minutesLate / 15);
-  
-  const totalFine = fineBlocks * 10000;
+  const fineBlocks = minutesLate / settings.block_minutes;
+  const totalFine = fineBlocks * settings.fine_per_block_vnd;
   return { minutesLate, fineBlocks, totalFine };
 }
 
@@ -36,8 +29,29 @@ export default function AttendanceLogger({ employees, onLogged }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [settings, setSettings] = useState(null);
 
-  const preview = useMemo(() => previewFine(form.check_in_time), [form.check_in_time]);
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((rows) => {
+        const byKey = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+        setSettings({
+          workday_start_time: byKey.workday_start_time,
+          block_minutes: Number(byKey.block_minutes),
+          fine_per_block_vnd: Number(byKey.fine_per_block_vnd),
+        });
+      })
+      .catch(() => {
+        /* preview just won't show if settings can't be loaded; the save
+           action itself still works since fines are computed server-side */
+      });
+  }, []);
+
+  const preview = useMemo(
+    () => previewFine(form.check_in_time, settings),
+    [form.check_in_time, settings]
+  );
   const activeEmployees = employees.filter((e) => e.status === 'ACTIVE');
 
   function update(field, value) {

@@ -37,4 +37,13 @@ export const api = {
   getEmployeeAnalytics: (id, month) =>
     request(`/analytics/employee/${id}${month ? `?month=${month}` : ''}`),
   getFineSheet: (month) => request(`/analytics/fine-sheet${month ? `?month=${month}` : ''}`),
+  getTrends: (months) => request(`/analytics/trends?months=${months}`),
+
+  getSettings: () => request('/settings'),
+  updateSettings: (payload) => request('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
+
+  exportMonthlyUrl: ({ month, format = 'csv', report = 'detail' }) => {
+    const params = new URLSearchParams({ month, format, report });
+    return `${BASE_URL}/export/monthly?${params.toString()}`;
+  },
 };

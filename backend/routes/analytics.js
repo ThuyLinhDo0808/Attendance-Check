@@ -176,4 +176,52 @@ router.get('/fine-sheet', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/analytics/trends?months=6
+ * Zero-filled monthly series for the last N months (default 6, max 24),
+ * including the current month. Powers the lateness-trend line chart —
+ * "did the new regulations reduce lateness" needs a continuous series,
+ * not just months that happen to have logs.
+ */
+router.get('/trends', async (req, res, next) => {
+  try {
+    const months = Math.min(24, Math.max(1, Number(req.query.months) || 6));
+
+    const { rows } = await pool.query(
+      `WITH months AS (
+         SELECT to_char(gs, 'YYYY-MM') AS month
+         FROM generate_series(
+           date_trunc('month', CURRENT_DATE) - ($1 || ' months')::interval,
+           date_trunc('month', CURRENT_DATE),
+           interval '1 month'
+         ) AS gs
+       )
+       SELECT
+         m.month,
+         COALESCE(COUNT(al.id) FILTER (WHERE al.minutes_late > 0), 0) AS total_late_checkins,
+         COALESCE(SUM(al.minutes_late), 0)                             AS total_minutes_late,
+         COALESCE(SUM(al.total_fine), 0)                               AS total_fine_collected,
+         COALESCE(COUNT(al.id), 0)                                     AS total_logs
+       FROM months m
+       LEFT JOIN attendance_logs al
+         ON to_char(date_trunc('month', al.work_date), 'YYYY-MM') = m.month
+       GROUP BY m.month
+       ORDER BY m.month ASC`,
+      [months - 1]
+    );
+
+    res.json(
+      rows.map((r) => ({
+        month: r.month,
+        total_late_checkins: Number(r.total_late_checkins),
+        total_minutes_late: Number(r.total_minutes_late),
+        total_fine_collected: Number(r.total_fine_collected),
+        total_logs: Number(r.total_logs),
+      }))
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

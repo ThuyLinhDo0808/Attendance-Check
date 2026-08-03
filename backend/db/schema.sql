@@ -44,3 +44,22 @@ CREATE TABLE attendance_logs (
 
 CREATE INDEX idx_attendance_work_date ON attendance_logs (work_date);
 CREATE INDEX idx_attendance_employee ON attendance_logs (employee_id);
+
+-- ------------------------------------------------------------
+-- Settings
+-- Business-rule constants the admin can change from the UI at
+-- runtime, instead of editing .env and restarting the server.
+-- Stored as text and parsed by the backend (utils/settingsCache.js)
+-- since the set of settings may grow without needing new columns.
+-- ------------------------------------------------------------
+CREATE TABLE settings (
+    key             VARCHAR(50) PRIMARY KEY,
+    value           VARCHAR(50) NOT NULL,
+    description     TEXT,
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO settings (key, value, description) VALUES
+    ('workday_start_time', '08:30', 'Time of day after which a check-in counts as late (24h HH:MM)'),
+    ('block_minutes',      '15',    'Size of one lateness block, in minutes'),
+    ('fine_per_block_vnd', '5000', 'Cash fine charged per lateness block, in VND');

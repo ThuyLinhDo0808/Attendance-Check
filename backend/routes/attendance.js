@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db/pool');
 const { calculateLateness } = require('../utils/fineCalculator');
+const { getSettings } = require('../utils/settingsCache');
 
 const router = express.Router();
 
@@ -33,7 +34,8 @@ router.post('/log', async (req, res, next) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    const { minutes_late, fine_blocks, total_fine } = calculateLateness(check_in_time);
+    const settings = await getSettings();
+    const { minutes_late, fine_blocks, total_fine } = calculateLateness(check_in_time, settings);
 
     const { rows } = await pool.query(
       `INSERT INTO attendance_logs

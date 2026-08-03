@@ -5,6 +5,8 @@ const cors = require('cors');
 const employeesRouter = require('./routes/employees');
 const attendanceRouter = require('./routes/attendance');
 const analyticsRouter = require('./routes/analytics');
+const settingsRouter = require('./routes/settings');
+const exportRouter = require('./routes/export');
 
 const app = express();
 
@@ -24,6 +26,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/export', exportRouter);
 
 // 404 fallback
 app.use((req, res) => {
