@@ -10,19 +10,78 @@ attendance-app/
 └── frontend/    React + Vite + Tailwind admin dashboard
 ```
 
-## Business rules (implemented in `backend/utils/fineCalculator.js`)
+## Business rules — now configured in the database
 
-- **Workday start:** 08:30 AM (change `WORKDAY_START_TIME` in `backend/.env`).
+Workday start time, block size, and the fine rate are **no longer in
+`.env`**. They live in the `settings` table (seeded with the same
+defaults by `db/schema.sql`) and are editable from the **Settings tab**
+in the admin UI — changes take effect immediately, no restart needed.
+
+- **Workday start:** default 08:30 AM.
 - **Lateness:** any check-in strictly after the start time.
-- **Fine blocks:** `minutes_late / 15` — an *exact* fraction, never rounded up.
-  - 5 min late → 5/15 = **0.33** blocks
+- **Fine blocks:** `minutes_late / block_minutes` — an *exact* fraction,
+  never rounded up.
+  - 5 min late (15-min block) → 5/15 = **0.33** blocks
   - 16 min late → 16/15 = **1.07** blocks
-- **Fine amount:** `fine_blocks × 10,000 VNĐ`.
-  - 5 min late → 0.33 × 10,000 = **1,666.67 VNĐ**
+- **Fine amount:** `fine_blocks × fine_per_block_vnd`.
+  - 5 min late → 0.33 × 5,000 = **1,666.67 VNĐ**
 
 All three values (`minutes_late`, `fine_blocks`, `total_fine`) are always
-recomputed **server-side** from the submitted check-in time — the client
-never sends them — so the business rule lives in exactly one place.
+recomputed **server-side** at log time from the check-in time and the
+*current* settings — the client never sends them and past logs are never
+retroactively recalculated when settings change later (so historical
+fines stay accurate to the policy that was in effect when they were
+earned).
+
+## Data visualization
+
+The **Company Analytics** tab includes:
+
+- A **line chart** of late check-ins per month and total fines collected
+  per month, over the last 3/6/12 months (zero-filled, so a quiet month
+  still shows as a dip rather than a gap) — the chart to check whether a
+  new regulation actually reduced lateness.
+- A **bar chart** comparing total fine amount across employees for the
+  selected month.
+- The full "who's late" table described above.
+
+Charts are built with [Recharts](https://recharts.org/) (`frontend`
+depends on it — remember to `npm install` after pulling this update).
+
+## Exporting a monthly report
+
+Both the **Company Analytics** and **Employee Fine Sheet** tabs have
+Export buttons for the selected month:
+
+- **CSV** — a flat, plain-numeric file (no thousands separators or
+  currency symbols, ISO dates) so it drops straight into accounting/ERP
+  imports. Company Analytics exports transaction-level detail (one row
+  per attendance log); Fine Sheet exports the employee-summary version.
+- **Excel (.xlsx)** — a workbook with both a `Summary` sheet (one row per
+  employee) and a `Detail` sheet (every log that month), for month-end
+  review and filing.
+
+Both are plain links to `GET /api/export/monthly` — the browser handles
+the download, no extra JS required. You can also hit the endpoint
+directly:
+
+```
+GET /api/export/monthly?month=2026-07&format=csv&report=detail   # or report=summary
+GET /api/export/monthly?month=2026-07&format=xlsx
+```
+
+## Fixing a mistake
+
+You never need to touch the database or restart the app to correct a log:
+
+- **Employee Fine Sheet → click a row → Edit/Delete** next to any date in
+  their history. Editing re-submits check-in/check-out through the same
+  upsert endpoint, so `minutes_late`/`fine_blocks`/`total_fine` are always
+  recalculated server-side — never edited by hand.
+- **Attendance Logger → "Late today" panel** has the same Edit/Delete
+  actions, for fixing an entry right after you log it.
+
+Both update in place; nothing else needs to reload.
 
 ## "Who's late" — where to look
 
@@ -47,7 +106,7 @@ The app was built around surfacing this clearly, not burying it in a report:
 
 ```bash
 # Create the database (adjust user/host as needed)
-createdb -U postgres attendance_fine_db
+createdb attendance_fine_db
 ```
 
 ```bash
@@ -111,20 +170,15 @@ building if it won't be same-origin.
 | GET    | `/api/attendance`                       | List logs (`?employee_id=`, `?month=YYYY-MM`, `?date=YYYY-MM-DD`, `?late_only=true`) |
 | DELETE | `/api/attendance/:id`                   | Remove a log entry |
 | GET    | `/api/analytics/monthly?month=YYYY-MM`  | Company-wide totals + full list of late workers that month |
+| GET    | `/api/analytics/trends?months=6`        | Zero-filled monthly series for the trend charts |
 | GET    | `/api/analytics/employee/:id`           | One employee's totals + full check-in history |
 | GET    | `/api/analytics/fine-sheet?month=`      | All employees with aggregate totals (powers Tab 3); omit `month` for all-time |
+| GET    | `/api/settings`                         | Current business-rule settings |
+| PUT    | `/api/settings`                         | Update one or more settings (body: any of `workday_start_time`, `block_minutes`, `fine_per_block_vnd`) |
+| GET    | `/api/export/monthly?month=YYYY-MM`     | Download report (`?format=csv\|xlsx`, `?report=detail\|summary` for CSV) |
 
 ## Adjusting the business rule
 
-Everything is driven by `backend/.env`:
-
-```env
-WORKDAY_START_TIME=08:30
-BLOCK_MINUTES=15
-FINE_PER_BLOCK_VND=10000
-```
-
-Change these and restart the backend — new logs will use the new rule.
-Existing logs keep the fine that was calculated when they were saved (by
-design, so historical fines don't silently change if the policy changes
-later).
+Open the **Settings** tab in the app and edit the values there — they're
+stored in the `settings` table and take effect on the next log or edit,
+no restart required. (`backend/.env` no longer holds these — see above.)
