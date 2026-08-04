@@ -12,7 +12,7 @@ function previewFine(checkInTime, settings) {
   const [h, m] = checkInTime.split(':').map(Number);
   const [sh, sm] = settings.workday_start_time.split(':').map(Number);
   const minutesLate = Math.max(0, h * 60 + m - (sh * 60 + sm));
-  const fineBlocks = minutesLate / settings.block_minutes;
+  const fineBlocks = Math.floor(minutesLate / settings.block_minutes);
   const totalFine = fineBlocks * settings.fine_per_block_vnd;
   return { minutesLate, fineBlocks, totalFine };
 }

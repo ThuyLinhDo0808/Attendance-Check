@@ -43,7 +43,7 @@ function calculateLateness(checkInTime, settings) {
   const startMinutes = timeToMinutes(workday_start_time);
 
   const minutesLate = Math.max(0, checkInMinutes - startMinutes);
-  const fineBlocks = minutesLate / block_minutes;
+  const fineBlocks = Math.floor(minutesLate / block_minutes);
   const totalFine = fineBlocks * fine_per_block_vnd;
 
   return {
