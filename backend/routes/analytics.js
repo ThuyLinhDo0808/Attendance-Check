@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
+const { fetchRangeLateRows } = require('../utils/reportQueries');
 
 const router = express.Router();
 
@@ -24,19 +25,23 @@ router.get('/monthly', async (req, res, next) => {
       [monthDate]
     );
 
+    // Grouped by employee_code (the stable SCD2 business key), NOT
+    // employee_id — a mid-month department transfer changes employee_id
+    // but must still roll up as ONE person, not fragment into two rows.
+    // Joined to the CURRENT employee version for display name/department,
+    // since a leaderboard is a present-day view of "who is late".
     const leaderboardPromise = pool.query(
       `SELECT
-         e.id,
-         e.name,
          e.employee_code,
+         e.name,
          COUNT(*) FILTER (WHERE al.minutes_late > 0)  AS times_late,
          COALESCE(SUM(al.minutes_late), 0)             AS total_minutes_late,
          COALESCE(SUM(al.fine_blocks), 0)              AS total_fine_blocks,
          COALESCE(SUM(al.total_fine), 0)               AS total_fine
        FROM attendance_logs al
-       JOIN employees e ON e.id = al.employee_id
+       JOIN employees e ON e.employee_code = al.employee_code AND e.is_current = TRUE
        WHERE date_trunc('month', al.work_date) = date_trunc('month', $1::date)
-       GROUP BY e.id, e.name, e.employee_code
+       GROUP BY e.employee_code, e.name
        HAVING COUNT(*) FILTER (WHERE al.minutes_late > 0) > 0
        ORDER BY times_late DESC, total_minutes_late DESC`,
       [monthDate]
@@ -67,25 +72,28 @@ router.get('/monthly', async (req, res, next) => {
 });
 
 /**
- * GET /api/analytics/employee/:id
- * Detailed lifetime stats for one employee, plus their full log history
- * (used to populate the "late history" modal in the Employee Fine Sheet).
+ * GET /api/analytics/employee/:code
+ * Detailed lifetime stats for one employee (by stable employee_code), plus
+ * their full log history — used by the "late history" modal. Each history
+ * row also shows the department/name that were true AT THE TIME of that
+ * log (joined via employee_id, the frozen per-log version), so a report
+ * on old data reconstructs the org context exactly as it was then.
  * Optional ?month=YYYY-MM narrows both stats and history to one month.
  */
-router.get('/employee/:id', async (req, res, next) => {
+router.get('/employee/:code', async (req, res, next) => {
   try {
-    const { id } = req.params;
+    const { code } = req.params;
     const { month } = req.query;
 
     const empResult = await pool.query(
-      'SELECT id, name, employee_code, status FROM employees WHERE id = $1',
-      [id]
+      'SELECT id, employee_code, name, status, effective_start_date FROM employees WHERE employee_code = $1 AND is_current = TRUE',
+      [code]
     );
     if (empResult.rows.length === 0) {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    const params = [id];
+    const params = [code];
     let monthFilter = '';
     if (month) {
       params.push(`${month}-01`);
@@ -99,15 +107,18 @@ router.get('/employee/:id', async (req, res, next) => {
          COALESCE(SUM(fine_blocks), 0)                AS total_fine_blocks,
          COALESCE(SUM(total_fine), 0)                 AS total_fine
        FROM attendance_logs
-       WHERE employee_id = $1 ${monthFilter}`,
+       WHERE employee_code = $1 ${monthFilter}`,
       params
     );
 
     const historyResult = await pool.query(
-      `SELECT id, work_date, check_in_time, check_out_time, minutes_late, fine_blocks, total_fine, note
-       FROM attendance_logs
-       WHERE employee_id = $1 ${monthFilter}
-       ORDER BY work_date DESC`,
+      `SELECT al.id, al.work_date, al.check_in_time, al.check_out_time, al.minutes_late,
+              al.fine_blocks, al.total_fine, al.is_exempt, al.note,
+              e.name AS name_at_time
+       FROM attendance_logs al
+       JOIN employees e ON e.id = al.employee_id
+       WHERE al.employee_code = $1 ${monthFilter}
+       ORDER BY al.work_date DESC`,
       params
     );
 
@@ -130,8 +141,9 @@ router.get('/employee/:id', async (req, res, next) => {
 
 /**
  * GET /api/analytics/fine-sheet
- * Convenience endpoint powering Tab 3 in one call: every employee with
- * their aggregate lateness/fine totals across all recorded history.
+ * Convenience endpoint powering Tab 3 in one call: every CURRENT employee
+ * with their aggregate lateness/fine totals across all recorded history
+ * (matched by employee_code so it survives department transfers).
  * Optional ?month=YYYY-MM to scope totals to one month.
  */
 router.get('/fine-sheet', async (req, res, next) => {
@@ -146,9 +158,8 @@ router.get('/fine-sheet', async (req, res, next) => {
 
     const { rows } = await pool.query(
       `SELECT
-         e.id,
-         e.name,
          e.employee_code,
+         e.name,
          e.status,
          COUNT(al.id) FILTER (WHERE al.minutes_late > 0)   AS times_late,
          COALESCE(SUM(al.minutes_late), 0)                  AS total_minutes_late,
@@ -156,8 +167,9 @@ router.get('/fine-sheet', async (req, res, next) => {
          COALESCE(SUM(al.total_fine), 0)                    AS total_fine
        FROM employees e
        LEFT JOIN attendance_logs al
-         ON al.employee_id = e.id ${monthFilter}
-       GROUP BY e.id, e.name, e.employee_code, e.status
+         ON al.employee_code = e.employee_code ${monthFilter}
+       WHERE e.is_current = TRUE
+       GROUP BY e.employee_code, e.name, e.status
        ORDER BY e.name ASC`,
       params
     );
@@ -179,9 +191,7 @@ router.get('/fine-sheet', async (req, res, next) => {
 /**
  * GET /api/analytics/trends?months=6
  * Zero-filled monthly series for the last N months (default 6, max 24),
- * including the current month. Powers the lateness-trend line chart —
- * "did the new regulations reduce lateness" needs a continuous series,
- * not just months that happen to have logs.
+ * including the current month. Powers the lateness-trend line chart.
  */
 router.get('/trends', async (req, res, next) => {
   try {
@@ -226,34 +236,17 @@ router.get('/trends', async (req, res, next) => {
 
 /**
  * GET /api/analytics/range?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
- * Lấy chi tiết lịch sử điểm danh của mọi người trong một khoảng thời gian (VD: 1 tuần)
+ * Late-check-in detail across an arbitrary date range (e.g. a weekly
+ * report). department_at_time reflects the department that was true on
+ * each log's own date, not today's — the SCD2 point-in-time guarantee.
  */
 router.get('/range', async (req, res, next) => {
   try {
     const { start_date, end_date } = req.query;
-
     if (!start_date || !end_date) {
       return res.status(400).json({ error: 'start_date and end_date are required' });
     }
-
-    const { rows } = await pool.query(
-      `SELECT 
-         al.id,
-         al.work_date,
-         al.check_in_time,
-         al.minutes_late,
-         al.fine_blocks,
-         al.total_fine,
-         e.name AS employee_name,
-         e.employee_code
-       FROM attendance_logs al
-       JOIN employees e ON e.id = al.employee_id
-       WHERE al.work_date >= $1::date AND al.work_date <= $2::date
-         AND al.minutes_late > 0 -- Chỉ lấy những người đi muộn để báo cáo
-       ORDER BY al.work_date DESC, al.minutes_late DESC`,
-      [start_date, end_date]
-    );
-
+    const rows = await fetchRangeLateRows(start_date, end_date);
     res.json(rows);
   } catch (err) {
     next(err);

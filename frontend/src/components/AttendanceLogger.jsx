@@ -7,19 +7,20 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function previewFine(checkInTime, settings) {
+function previewFine(checkInTime, isExempt, settings) {
+  if (isExempt) return { minutesLate: 0, fineBlocks: 0, totalFine: 0, exempt: true };
   if (!checkInTime || !settings) return null;
   const [h, m] = checkInTime.split(':').map(Number);
   const [sh, sm] = settings.workday_start_time.split(':').map(Number);
   const minutesLate = Math.max(0, h * 60 + m - (sh * 60 + sm));
-  const fineBlocks = Math.floor(minutesLate / settings.block_minutes);
+  const fineBlocks = Math.ceil(minutesLate / settings.block_minutes);
   const totalFine = fineBlocks * settings.fine_per_block_vnd;
-  return { minutesLate, fineBlocks, totalFine };
+  return { minutesLate, fineBlocks, totalFine, exempt: false };
 }
 
 export default function AttendanceLogger({ employees, onLogged }) {
   const [form, setForm] = useState({
-    employee_id: '',
+    employee_code: '',
     work_date: todayISO(),
     check_in_time: '',
     check_out_time: '',
@@ -50,8 +51,8 @@ export default function AttendanceLogger({ employees, onLogged }) {
   }, []);
 
   const preview = useMemo(
-    () => previewFine(form.check_in_time, settings),
-    [form.check_in_time, settings]
+    () => previewFine(form.check_in_time, form.is_exempt, settings),
+    [form.check_in_time, form.is_exempt, settings]
   );
   const activeEmployees = employees.filter((e) => e.status === 'ACTIVE');
 
@@ -64,17 +65,21 @@ export default function AttendanceLogger({ employees, onLogged }) {
     e.preventDefault();
     setError(null);
 
-    if (!form.employee_id || !form.work_date || (!form.is_exempt && !form.check_in_time)) {
-      setError('Employee, date, and check-in time are required (unless exempted).');
+    if (!form.employee_code || !form.work_date) {
+      setError('Employee and date are required.');
+      return;
+    }
+    if (!form.is_exempt && !form.check_in_time) {
+      setError('Check-in time is required unless this day is marked exempt.');
       return;
     }
 
     setSubmitting(true);
     try {
       const payload = {
-        employee_id: Number(form.employee_id),
+        employee_code: form.employee_code,
         work_date: form.work_date,
-        check_in_time: form.check_in_time,
+        check_in_time: form.is_exempt ? null : form.check_in_time,
         check_out_time: form.check_out_time || null,
         note: form.note || null,
         is_exempt: form.is_exempt,
@@ -96,7 +101,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
         <h2 className="text-2xl font-bold text-slate-900">Attendance Logger</h2>
         <p className="text-sm text-slate-500 mt-1">
           Log or correct a check-in / check-out for any employee and date. Lateness and fines
-          are computed automatically against the 08:30 cutoff.
+          are computed automatically against the current workday cutoff.
         </p>
       </header>
 
@@ -109,13 +114,13 @@ export default function AttendanceLogger({ employees, onLogged }) {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Employee</label>
               <select
-                value={form.employee_id}
-                onChange={(e) => update('employee_id', e.target.value)}
+                value={form.employee_code}
+                onChange={(e) => update('employee_code', e.target.value)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent"
               >
                 <option value="">Select employee…</option>
                 {activeEmployees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
+                  <option key={emp.employee_code} value={emp.employee_code}>
                     {emp.name} ({emp.employee_code})
                   </option>
                 ))}
@@ -134,13 +139,14 @@ export default function AttendanceLogger({ employees, onLogged }) {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Check-in time
+                Check-in time {form.is_exempt && <span className="text-slate-400 font-normal">(not required — exempt)</span>}
               </label>
               <input
                 type="time"
                 value={form.check_in_time}
                 onChange={(e) => update('check_in_time', e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+                disabled={form.is_exempt}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent disabled:bg-slate-50 disabled:text-slate-400"
               />
             </div>
 
@@ -155,21 +161,17 @@ export default function AttendanceLogger({ employees, onLogged }) {
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
               />
             </div>
-
-            <div className="sm:col-span-2 pt-2">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.is_exempt}
-                  onChange={(e) => update('is_exempt', e.target.checked)}
-                  className="rounded border-slate-300 text-accent focus:ring-accent w-4 h-4"
-                />
-                <span className="text-sm font-medium text-slate-700">
-                  Miễn trừ phạt (Nghỉ phép, Đã xin phép, Lý do hợp lệ...)
-                </span>
-              </label>
-            </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={form.is_exempt}
+              onChange={(e) => update('is_exempt', e.target.checked)}
+              className="rounded border-slate-300 text-accent focus:ring-accent"
+            />
+            Exempt from lateness rules (approved leave, business trip, etc.)
+          </label>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -205,7 +207,9 @@ export default function AttendanceLogger({ employees, onLogged }) {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
               Live fine preview
             </h3>
-            {preview ? (
+            {preview?.exempt ? (
+              <p className="text-sm text-ok font-medium">Exempt — no fine will be charged.</p>
+            ) : preview ? (
               <dl className="space-y-2.5 text-sm">
                 <Row label="Minutes late" value={`${preview.minutesLate} min`} />
                 <Row label="Fine blocks" value={formatBlocks(preview.fineBlocks)} />
@@ -228,11 +232,15 @@ export default function AttendanceLogger({ employees, onLogged }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-ok mb-3">
                 Saved successfully
               </h3>
-              <dl className="space-y-2.5 text-sm">
-                <Row label="Minutes late" value={`${result.minutes_late} min`} />
-                <Row label="Fine blocks" value={formatBlocks(result.fine_blocks)} />
-                <Row label="Total fine" value={formatVNDExact(result.total_fine)} emphasize />
-              </dl>
+              {result.is_exempt ? (
+                <p className="text-sm text-ok">Marked exempt — no fine charged.</p>
+              ) : (
+                <dl className="space-y-2.5 text-sm">
+                  <Row label="Minutes late" value={`${result.minutes_late} min`} />
+                  <Row label="Fine blocks" value={formatBlocks(result.fine_blocks)} />
+                  <Row label="Total fine" value={formatVNDExact(result.total_fine)} emphasize />
+                </dl>
+              )}
             </div>
           )}
         </div>

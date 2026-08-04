@@ -17,16 +17,20 @@ async function request(path, options = {}) {
 
 export const api = {
   getEmployees: (status) => request(`/employees${status ? `?status=${status}` : ''}`),
+  getEmployeeHistory: (code) => request(`/employees/${code}/history`),
   createEmployee: (payload) =>
     request('/employees', { method: 'POST', body: JSON.stringify(payload) }),
-  updateEmployee: (id, payload) =>
-    request(`/employees/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  updateEmployee: (code, payload) =>
+    request(`/employees/${code}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // employee_code is the stable identifier used everywhere now (an
+  // employee's numeric id changes if they get a new SCD2 version, e.g.
+  // a department transfer — employee_code never does).
   logAttendance: (payload) =>
     request('/attendance/log', { method: 'POST', body: JSON.stringify(payload) }),
-  getAttendanceLogs: ({ employee_id, month, date, lateOnly } = {}) => {
+  getAttendanceLogs: ({ employee_code, month, date, lateOnly } = {}) => {
     const params = new URLSearchParams();
-    if (employee_id) params.set('employee_id', employee_id);
+    if (employee_code) params.set('employee_code', employee_code);
     if (month) params.set('month', month);
     if (date) params.set('date', date);
     if (lateOnly) params.set('late_only', 'true');
@@ -36,13 +40,14 @@ export const api = {
   deleteAttendanceLog: (id) => request(`/attendance/${id}`, { method: 'DELETE' }),
 
   getMonthlyAnalytics: (month) => request(`/analytics/monthly?month=${month}`),
-  getEmployeeAnalytics: (id, month) =>
-    request(`/analytics/employee/${id}${month ? `?month=${month}` : ''}`),
+  getEmployeeAnalytics: (code, month) =>
+    request(`/analytics/employee/${code}${month ? `?month=${month}` : ''}`),
   getFineSheet: (month) => request(`/analytics/fine-sheet${month ? `?month=${month}` : ''}`),
   getTrends: (months) => request(`/analytics/trends?months=${months}`),
 
   getSettings: () => request('/settings'),
   updateSettings: (payload) => request('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
+  getSettingsHistory: (key) => request(`/settings/history${key ? `?key=${key}` : ''}`),
 
   exportMonthlyUrl: ({ month, format = 'csv', report = 'detail' }) => {
     const params = new URLSearchParams({ month, format, report });
@@ -56,4 +61,7 @@ export const api = {
     const params = new URLSearchParams({ start_date, end_date, format });
     return `${BASE_URL}/export/range?${params.toString()}`;
   },
+
+  getSyncStatus: () => request('/sync/status'),
+  syncMonthNow: (month) => request('/sync/monthly', { method: 'POST', body: JSON.stringify({ month }) }),
 };

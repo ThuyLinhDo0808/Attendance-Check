@@ -8,7 +8,7 @@ export default function EmployeeFineSheet() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedCode, setSelectedCode] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,8 +114,8 @@ export default function EmployeeFineSheet() {
                 const isLate = r.times_late > 0;
                 return (
                   <tr
-                    key={r.id}
-                    onClick={() => setSelectedId(r.id)}
+                    key={r.employee_code}
+                    onClick={() => setSelectedCode(r.employee_code)}
                     className={`cursor-pointer transition-colors ${
                       isLate ? 'bg-fine-soft/40 hover:bg-fine-soft' : 'hover:bg-slate-50'
                     }`}
@@ -163,7 +163,7 @@ export default function EmployeeFineSheet() {
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-slate-400">
                     No employees found.
                   </td>
                 </tr>
@@ -173,10 +173,10 @@ export default function EmployeeFineSheet() {
         )}
       </div>
 
-      {selectedId && (
+      {selectedCode && (
         <EmployeeModal
-          employeeId={selectedId}
-          onClose={() => setSelectedId(null)}
+          employeeCode={selectedCode}
+          onClose={() => setSelectedCode(null)}
           onChanged={() => api.getFineSheet(month || undefined).then(setRows).catch((err) => setError(err.message))}
         />
       )}

@@ -65,7 +65,7 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
     setRowError(null);
     try {
       await api.logAttendance({
-        employee_id: log.employee_id,
+        employee_code: log.employee_code,
         work_date: log.work_date,
         check_in_time: draft.check_in_time,
         check_out_time: draft.check_out_time || null,

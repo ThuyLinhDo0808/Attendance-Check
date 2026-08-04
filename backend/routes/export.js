@@ -1,6 +1,6 @@
 const express = require('express');
 const ExcelJS = require('exceljs');
-const pool = require('../db/pool');
+const { fetchDetailRows, fetchSummaryRows, fetchRangeLateRows } = require('../utils/reportQueries');
 
 const router = express.Router();
 
@@ -12,47 +12,8 @@ function csvEscape(value) {
   return str;
 }
 
-async function fetchDetailRows(month) {
-  const { rows } = await pool.query(
-    `SELECT e.employee_code, e.name AS employee_name, al.work_date, al.check_in_time,
-            al.check_out_time, al.minutes_late, al.fine_blocks, al.total_fine, al.note
-     FROM attendance_logs al
-     JOIN employees e ON e.id = al.employee_id
-     WHERE date_trunc('month', al.work_date) = date_trunc('month', $1::date)
-     ORDER BY e.name ASC, al.work_date ASC`,
-    [`${month}-01`]
-  );
-  return rows;
-}
-
-async function fetchSummaryRows(month) {
-  const { rows } = await pool.query(
-    `SELECT e.employee_code, e.name AS employee_name,
-            COUNT(al.id) FILTER (WHERE al.minutes_late > 0) AS times_late,
-            COALESCE(SUM(al.minutes_late), 0)                AS total_minutes_late,
-            COALESCE(SUM(al.fine_blocks), 0)                 AS total_fine_blocks,
-            COALESCE(SUM(al.total_fine), 0)                  AS total_fine
-     FROM employees e
-     LEFT JOIN attendance_logs al
-       ON al.employee_id = e.id
-       AND date_trunc('month', al.work_date) = date_trunc('month', $1::date)
-     GROUP BY e.id, e.employee_code, e.name
-     ORDER BY e.name ASC`,
-    [`${month}-01`]
-  );
-  return rows;
-}
-
 /**
  * GET /api/export/monthly?month=YYYY-MM&format=csv|xlsx&report=detail|summary
- *
- * - format=csv (default): a flat, plain-numeric file — one row per
- *   attendance log (report=detail, the default) or one row per employee
- *   totals (report=summary). No thousands separators or currency symbols
- *   in numeric columns, and dates are ISO (YYYY-MM-DD), so the file drops
- *   straight into accounting/ERP imports without reformatting.
- * - format=xlsx: a workbook with both a "Summary" and a "Detail" sheet,
- *   for month-end review/filing.
  */
 router.get('/monthly', async (req, res, next) => {
   try {
@@ -65,10 +26,7 @@ router.get('/monthly', async (req, res, next) => {
     }
 
     if (format === 'xlsx') {
-      const [detail, summary] = await Promise.all([
-        fetchDetailRows(month),
-        fetchSummaryRows(month),
-      ]);
+      const [detail, summary] = await Promise.all([fetchDetailRows(month), fetchSummaryRows(month)]);
 
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Attendance & Fine Ledger';
@@ -107,6 +65,7 @@ router.get('/monthly', async (req, res, next) => {
         { header: 'Minutes Late', key: 'minutes_late', width: 12 },
         { header: 'Fine Blocks', key: 'fine_blocks', width: 12 },
         { header: 'Total Fine (VND)', key: 'total_fine', width: 16 },
+        { header: 'Exempt', key: 'is_exempt', width: 10 },
         { header: 'Note', key: 'note', width: 30 },
       ];
       detail.forEach((row) =>
@@ -119,6 +78,7 @@ router.get('/monthly', async (req, res, next) => {
           minutes_late: Number(row.minutes_late),
           fine_blocks: Number(row.fine_blocks),
           total_fine: Number(row.total_fine),
+          is_exempt: row.is_exempt ? 'Yes' : '',
           note: row.note || '',
         })
       );
@@ -126,14 +86,8 @@ router.get('/monthly', async (req, res, next) => {
       detailSheet.getColumn('fine_blocks').numFmt = '0.00';
       detailSheet.getColumn('total_fine').numFmt = '#,##0';
 
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="attendance-report-${month}.xlsx"`
-      );
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="attendance-report-${month}.xlsx"`);
       await workbook.xlsx.write(res);
       return res.end();
     }
@@ -161,15 +115,8 @@ router.get('/monthly', async (req, res, next) => {
       const detail = await fetchDetailRows(month);
       lines.push(
         [
-          'employee_code',
-          'employee_name',
-          'work_date',
-          'check_in_time',
-          'check_out_time',
-          'minutes_late',
-          'fine_blocks',
-          'total_fine_vnd',
-          'note',
+          'employee_code', 'employee_name', 'work_date', 'check_in_time',
+          'check_out_time', 'minutes_late', 'fine_blocks', 'total_fine_vnd', 'is_exempt', 'note',
         ].join(',')
       );
       for (const row of detail) {
@@ -183,6 +130,7 @@ router.get('/monthly', async (req, res, next) => {
             csvEscape(row.minutes_late),
             csvEscape(Number(row.fine_blocks).toFixed(2)),
             csvEscape(Number(row.total_fine).toFixed(2)),
+            csvEscape(row.is_exempt ? 'Yes' : ''),
             csvEscape(row.note || ''),
           ].join(',')
         );
@@ -190,14 +138,9 @@ router.get('/monthly', async (req, res, next) => {
     }
 
     const csvBody = lines.join('\r\n') + '\r\n';
-
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="attendance-report-${month}-${report}.csv"`
-    );
-    // Leading BOM so Excel opens the UTF-8 file correctly (Vietnamese names).
-    res.send('\uFEFF' + csvBody);
+    res.setHeader('Content-Disposition', `attachment; filename="attendance-report-${month}-${report}.csv"`);
+    res.send('\uFEFF' + csvBody); // BOM so Excel opens UTF-8 (Vietnamese names) correctly
   } catch (err) {
     next(err);
   }
@@ -205,32 +148,23 @@ router.get('/monthly', async (req, res, next) => {
 
 /**
  * GET /api/export/range?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&format=csv|xlsx
+ * Late-only detail report over an arbitrary range (e.g. a weekly report).
  */
 router.get('/range', async (req, res, next) => {
   try {
     const { start_date, end_date } = req.query;
     const format = (req.query.format || 'csv').toLowerCase();
-    
+
     if (!start_date || !end_date) {
       return res.status(400).json({ error: 'start_date and end_date are required' });
     }
 
-    const { rows: detail } = await pool.query(
-      `SELECT e.employee_code, e.name AS employee_name, al.work_date, al.check_in_time,
-              al.minutes_late, al.total_fine, al.note
-       FROM attendance_logs al
-       JOIN employees e ON e.id = al.employee_id
-       WHERE al.work_date >= $1::date AND al.work_date <= $2::date
-         AND al.minutes_late > 0
-       ORDER BY al.work_date ASC, al.minutes_late DESC`,
-      [start_date, end_date]
-    );
+    const detail = await fetchRangeLateRows(start_date, end_date);
 
     if (format === 'xlsx') {
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'Attendance App';
-      const sheet = workbook.addWorksheet('Weekly Late Report');
-      
+      workbook.creator = 'Attendance & Fine Ledger';
+      const sheet = workbook.addWorksheet('Late Report');
       sheet.columns = [
         { header: 'Date', key: 'work_date', width: 12 },
         { header: 'Employee Code', key: 'employee_code', width: 14 },
@@ -240,40 +174,42 @@ router.get('/range', async (req, res, next) => {
         { header: 'Total Fine (VND)', key: 'total_fine', width: 16 },
         { header: 'Note', key: 'note', width: 30 },
       ];
-
-      detail.forEach(row => {
+      detail.forEach((row) =>
         sheet.addRow({
-          work_date: new Date(row.work_date).toLocaleDateString('en-GB'),
+          work_date: row.work_date,
           employee_code: row.employee_code,
           employee_name: row.employee_name,
           check_in_time: row.check_in_time ? String(row.check_in_time).slice(0, 5) : '',
           minutes_late: Number(row.minutes_late),
           total_fine: Number(row.total_fine),
           note: row.note || '',
-        });
-      });
-
+        })
+      );
       sheet.getRow(1).font = { bold: true };
       sheet.getColumn('total_fine').numFmt = '#,##0';
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="weekly-late-${start_date}-to-${end_date}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="late-report-${start_date}-to-${end_date}.xlsx"`);
       await workbook.xlsx.write(res);
       return res.end();
     }
 
-    // Luồng CSV
     const lines = ['work_date,employee_code,employee_name,check_in_time,minutes_late,total_fine_vnd,note'];
     for (const row of detail) {
-      lines.push([
-        csvEscape(row.work_date), csvEscape(row.employee_code), csvEscape(row.employee_name),
-        csvEscape(row.check_in_time ? String(row.check_in_time).slice(0, 5) : ''),
-        csvEscape(row.minutes_late), csvEscape(Number(row.total_fine).toFixed(2)), csvEscape(row.note || '')
-      ].join(','));
+      lines.push(
+        [
+          csvEscape(row.work_date),
+          csvEscape(row.employee_code),
+          csvEscape(row.employee_name),
+          csvEscape(row.check_in_time ? String(row.check_in_time).slice(0, 5) : ''),
+          csvEscape(row.minutes_late),
+          csvEscape(Number(row.total_fine).toFixed(2)),
+          csvEscape(row.note || ''),
+        ].join(',')
+      );
     }
-    
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="weekly-late-${start_date}-to-${end_date}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="late-report-${start_date}-to-${end_date}.csv"`);
     res.send('\uFEFF' + lines.join('\r\n') + '\r\n');
   } catch (err) {
     next(err);

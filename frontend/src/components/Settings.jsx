@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api';
-import { formatVNDExact, formatBlocks } from '../utils/format';
+import { formatVNDExact, formatBlocks, currentMonthValue } from '../utils/format';
 
 const FIELD_META = {
   workday_start_time: {
@@ -129,7 +129,7 @@ export default function Settings({ onSaved }) {
                   <p className="mt-1 text-xs text-slate-400">{meta.hint}</p>
                   {settings?.[key]?.updated_at && (
                     <p className="mt-0.5 text-[11px] text-slate-300">
-                      Last changed {new Date(settings[key].updated_at).toLocaleString()}
+                      Current version since {new Date(settings[key].updated_at).toLocaleString()}
                     </p>
                   )}
                 </div>
@@ -150,13 +150,13 @@ export default function Settings({ onSaved }) {
             </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-              Changing these values only affects logs saved or edited <strong>after</strong> the
-              change — past attendance records keep the fine that applied on the day they were
-              logged.
+              A change here never overwrites the old value — it closes the current version and
+              opens a new one (SCD2). Past attendance records keep the fine that applied on the
+              day they were logged, and the old rate stays permanently visible below for audit.
             </div>
           </form>
 
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
                 Example with these values
@@ -169,9 +169,15 @@ export default function Settings({ onSaved }) {
                 <Row label="Total fine" value={formatVNDExact(example.fine)} emphasize />
               </dl>
             </div>
+
+            <RateHistory />
           </div>
         </div>
       )}
+
+      <div className="mt-6">
+        <GoogleSheetsSyncPanel />
+      </div>
     </div>
   );
 }
@@ -184,5 +190,132 @@ function Row({ label, value, emphasize }) {
         {value}
       </dd>
     </div>
+  );
+}
+
+/**
+ * Shows the full SCD2 version timeline for fine_per_block_vnd — the
+ * direct, visible proof that changing the rate never erases the old
+ * one: "what was the fine rate 3 years ago" is answerable right here.
+ */
+function RateHistory() {
+  const [history, setHistory] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    api
+      .getSettingsHistory('fine_per_block_vnd')
+      .then(setHistory)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
+        Fine rate history (audit trail)
+      </h3>
+      {error ? (
+        <p className="text-xs text-fine">{error}</p>
+      ) : !history ? (
+        <p className="text-xs text-slate-400">Loading…</p>
+      ) : (
+        <ul className="space-y-2 text-sm">
+          {history.map((v) => (
+            <li key={v.id} className="flex items-center justify-between">
+              <span className={v.is_current ? 'font-semibold text-slate-900' : 'text-slate-500'}>
+                {formatVNDExact(v.value)} / block
+              </span>
+              <span className="text-xs text-slate-400 font-mono-num">
+                {new Date(v.effective_start_date).toLocaleDateString()} –{' '}
+                {v.effective_end_date ? new Date(v.effective_end_date).toLocaleDateString() : 'now'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Google Sheets auto-sync status + manual "sync now" control. Actual
+ * sync happens automatically after every attendance log/edit/delete
+ * (see backend/utils/googleSheetsSync.js) — this panel is just visibility
+ * plus a manual trigger for the current month.
+ */
+function GoogleSheetsSyncPanel() {
+  const [status, setStatus] = useState(null);
+  const [error, setError] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+  const month = currentMonthValue();
+
+  useEffect(() => {
+    api
+      .getSyncStatus()
+      .then(setStatus)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  async function syncNow() {
+    setSyncing(true);
+    setError(null);
+    try {
+      const result = await api.syncMonthNow(month);
+      setLastResult(result);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h3 className="text-sm font-semibold text-slate-900">Google Sheets auto-sync</h3>
+      <p className="text-xs text-slate-500 mt-0.5 mb-4">
+        When configured, every attendance log/edit/delete automatically pushes to a Google
+        Sheet — no need to download and re-upload an Excel file each time.
+      </p>
+
+      {error && <p className="text-xs text-fine mb-3">{error}</p>}
+
+      {!status ? (
+        <p className="text-xs text-slate-400">Checking status…</p>
+      ) : status.configured ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft text-ok text-xs font-semibold px-2.5 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+            Connected
+          </span>
+          <a
+            href={status.sheetUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-accent hover:underline"
+          >
+            Open sheet ↗
+          </a>
+          <button
+            onClick={syncNow}
+            disabled={syncing}
+            className="text-xs font-semibold text-white bg-accent hover:bg-indigo-600 rounded-lg px-3 py-1.5 disabled:opacity-50"
+          >
+            {syncing ? 'Syncing…' : `Sync ${month} now`}
+          </button>
+          {lastResult && !lastResult.skipped && (
+            <span className="text-xs text-slate-400">
+              Synced {lastResult.summaryRows} employees / {lastResult.detailRows} logs
+            </span>
+          )}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+          Not configured. Set <code>GOOGLE_SHEET_ID</code>, <code>GOOGLE_SERVICE_ACCOUNT_EMAIL</code>,
+          and <code>GOOGLE_PRIVATE_KEY</code> in <code>backend/.env</code> — see README.md "Google
+          Sheets auto-sync" for the step-by-step setup.
+        </div>
+      )}
+    </section>
   );
 }

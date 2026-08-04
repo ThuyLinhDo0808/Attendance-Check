@@ -7,6 +7,7 @@ const attendanceRouter = require('./routes/attendance');
 const analyticsRouter = require('./routes/analytics');
 const settingsRouter = require('./routes/settings');
 const exportRouter = require('./routes/export');
+const syncRouter = require('./routes/sync');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/attendance', attendanceRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/export', exportRouter);
+app.use('/api/sync', syncRouter);
 
 // 404 fallback
 app.use((req, res) => {

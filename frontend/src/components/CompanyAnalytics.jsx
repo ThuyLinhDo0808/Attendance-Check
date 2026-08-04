@@ -307,7 +307,7 @@ export default function CompanyAnalytics() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {lateWorkers.map((w) => (
-                      <tr key={w.id} className="bg-fine-soft/40 hover:bg-fine-soft transition-colors">
+                      <tr key={w.employee_code} className="bg-fine-soft/40 hover:bg-fine-soft transition-colors">
                         <td className="px-5 py-3 font-medium text-slate-900">
                           <span className="inline-flex items-center gap-2">
                             <span

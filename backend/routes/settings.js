@@ -27,7 +27,7 @@ function validate(key, value) {
 
 /**
  * GET /api/settings
- * Returns all business-rule settings currently in effect.
+ * Returns the CURRENT version of every business-rule setting.
  */
 router.get('/', async (req, res, next) => {
   try {
@@ -35,8 +35,6 @@ router.get('/', async (req, res, next) => {
       'SELECT key, value, description, effective_start_date AS updated_at FROM settings WHERE is_current = TRUE ORDER BY key'
     );
     const byKey = Object.fromEntries(rows.map((r) => [r.key, r]));
-    // Guarantee all known keys are present in the response even if a row
-    // is missing for some reason (e.g. partial migration).
     const result = ALLOWED_KEYS.map(
       (key) => byKey[key] || { key, value: DEFAULTS[key], description: null, updated_at: null }
     );
@@ -47,63 +45,112 @@ router.get('/', async (req, res, next) => {
 });
 
 /**
+ * GET /api/settings/history?key=fine_per_block_vnd
+ * Full SCD2 version timeline for one key (or every key if omitted) —
+ * this is the audit trail: "what was this rate, and for how long".
+ */
+router.get('/history', async (req, res, next) => {
+  try {
+    const { key } = req.query;
+    const params = [];
+    let whereClause = '';
+    if (key) {
+      params.push(key);
+      whereClause = 'WHERE key = $1';
+    }
+    const { rows } = await pool.query(
+      `SELECT id, key, value, description, effective_start_date, effective_end_date, is_current, created_at
+       FROM settings
+       ${whereClause}
+       ORDER BY key ASC, effective_start_date ASC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/settings/at?date=YYYY-MM-DD (or a full ISO timestamp)
+ * Reconstructs the full settings snapshot that was in effect on a given
+ * date — the direct answer to "what was the fine rate 3 years ago".
+ */
+router.get('/at', async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: 'date is required (YYYY-MM-DD or ISO timestamp)' });
+    }
+    const { rows } = await pool.query(
+      `SELECT key, value, description, effective_start_date, effective_end_date
+       FROM settings
+       WHERE effective_start_date <= $1::timestamp
+         AND (effective_end_date IS NULL OR effective_end_date > $1::timestamp)
+       ORDER BY key`,
+      [date]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * PUT /api/settings
  * Body: { workday_start_time?, block_minutes?, fine_per_block_vnd? }
- * Updates only the keys provided. Existing attendance_logs are NOT
- * recalculated — they keep the fine that applied when they were saved,
- * by design (see README). Only new logs / edits use the new settings.
+ *
+ * SCD2 write: for each key whose value actually changes, the CURRENT
+ * row is closed (is_current = FALSE, effective_end_date = NOW()) and a
+ * brand new row is inserted as the new current version. Nothing is
+ * ever UPDATEd in place — the old rate/value stays queryable forever
+ * via GET /api/settings/history. Existing attendance_logs are NOT
+ * recalculated; they already stored the fine computed under the rate
+ * that applied when they were logged.
  */
 router.put('/', async (req, res, next) => {
   const client = await pool.connect();
   try {
-    const updates = [];
+    const { rows: currentRows } = await client.query(
+      'SELECT key, value, description FROM settings WHERE is_current = TRUE'
+    );
+    const currentByKey = Object.fromEntries(currentRows.map((r) => [r.key, r]));
+
+    const changes = [];
     for (const key of ALLOWED_KEYS) {
       const raw = req.body[key];
       if (raw === undefined || raw === null || raw === '') continue;
       const value = String(raw).trim();
+
       const error = validate(key, value);
       if (error) {
         client.release();
         return res.status(400).json({ error });
       }
-      updates.push([key, value]);
+
+      const current = currentByKey[key];
+      if (current && current.value === value) continue; // no-op: skip creating a pointless version
+
+      changes.push({ key, value, description: current ? current.description : null });
     }
 
-    if (updates.length === 0) {
+    if (changes.length === 0) {
       client.release();
-      return res.status(400).json({ error: 'No valid settings provided.' });
+      return res.status(400).json({ error: 'No changed settings provided.' });
     }
 
     await client.query('BEGIN');
-    
-    for (const [key, value] of updates) {
-      // BƯỚC 1: Tìm bản ghi hiện tại đang active
-      const currentRes = await client.query(
-        'SELECT value, description FROM settings WHERE key = $1 AND is_current = TRUE',
-        [key]
-      );
-      
-      // Nếu giá trị không thay đổi, bỏ qua để tránh rác database
-      if (currentRes.rows.length > 0 && currentRes.rows[0].value === value) {
-        continue;
-      }
-      
-      const description = currentRes.rows.length > 0 ? currentRes.rows[0].description : null;
-
-      // BƯỚC 2: "Đóng" bản ghi cũ
+    for (const change of changes) {
       await client.query(
-        'UPDATE settings SET effective_end_date = NOW(), is_current = FALSE WHERE key = $1 AND is_current = TRUE',
-        [key]
+        'UPDATE settings SET is_current = FALSE, effective_end_date = NOW() WHERE key = $1 AND is_current = TRUE',
+        [change.key]
       );
-
-      // BƯỚC 3: "Mở" bản ghi mới
       await client.query(
-        `INSERT INTO settings (key, value, description, effective_start_date, is_current) 
-         VALUES ($1, $2, $3, NOW(), TRUE)`,
-        [key, value, description]
+        `INSERT INTO settings (key, value, description, effective_start_date, effective_end_date, is_current)
+         VALUES ($1, $2, $3, NOW(), NULL, TRUE)`,
+        [change.key, change.value, change.description]
       );
     }
-    
     await client.query('COMMIT');
     invalidate();
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '../api';
 import { formatVNDExact, formatBlocks, formatDate, formatTime } from '../utils/format';
 
-export default function EmployeeModal({ employeeId, onClose, onChanged }) {
+export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,14 +15,14 @@ export default function EmployeeModal({ employeeId, onClose, onChanged }) {
   const load = useCallback(() => {
     setLoading(true);
     return api
-      .getEmployeeAnalytics(employeeId)
+      .getEmployeeAnalytics(employeeCode)
       .then((res) => {
         setData(res);
         setError(null);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [employeeId]);
+  }, [employeeCode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +33,7 @@ export default function EmployeeModal({ employeeId, onClose, onChanged }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
+  }, [employeeCode]);
 
   function startEdit(h) {
     setEditingId(h.id);
@@ -58,11 +58,13 @@ export default function EmployeeModal({ employeeId, onClose, onChanged }) {
     setRowBusy(h.id);
     setRowError(null);
     try {
-      // Re-submitting with the same employee_id + work_date upserts the
+      // Re-submitting with the same employee_code + work_date upserts the
       // existing row (see backend ON CONFLICT) — this is the "just edit
-      // it" path instead of deleting and re-logging from scratch.
+      // it" path instead of deleting and re-logging from scratch. employee_id
+      // (the specific SCD2 version) stays frozen to whatever it was when
+      // this log was first created — the backend never rewrites it here.
       await api.logAttendance({
-        employee_id: data.employee.id,
+        employee_code: data.employee.employee_code,
         work_date: h.work_date,
         check_in_time: draft.check_in_time,
         check_out_time: draft.check_out_time || null,
