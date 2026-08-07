@@ -34,13 +34,13 @@ router.get('/monthly', async (req, res, next) => {
 
       const summarySheet = workbook.addWorksheet('Summary');
       summarySheet.columns = [
-        { header: 'Employee Code', key: 'employee_code', width: 14 },
-        { header: 'Employee Name', key: 'employee_name', width: 28 },
-        { header: 'Times Late', key: 'times_late', width: 12 },
-        { header: 'Total Minutes Late', key: 'total_minutes_late', width: 18 },
-        { header: 'Total Fine Blocks', key: 'total_fine_blocks', width: 16 },
-        { header: 'Total Fine (VND)', key: 'total_fine', width: 16 },
-      ];
+        { header: 'Mã Nhân Viên', key: 'employee_code', width: 14 }, // Sửa từ 'Employee Code'
+        { header: 'Họ và Tên', key: 'employee_name', width: 28 }, // Sửa từ 'Employee Name'
+        { header: 'Số Lần Đi Muộn', key: 'times_late', width: 12 }, // Sửa từ 'Times Late'
+        { header: 'Tổng Số Phút Muộn', key: 'total_minutes_late', width: 18 }, // Sửa từ 'Total Minutes Late'
+        { header: 'Số Block Phạt', key: 'total_fine_blocks', width: 16 }, // Sửa từ 'Total Fine Blocks'
+        { header: 'Tổng Tiền Phạt (VND)', key: 'total_fine', width: 16 }, // Sửa từ 'Total Fine (VND)'
+      ];  
       summary.forEach((row) =>
         summarySheet.addRow({
           employee_code: row.employee_code,
@@ -57,16 +57,16 @@ router.get('/monthly', async (req, res, next) => {
 
       const detailSheet = workbook.addWorksheet('Detail');
       detailSheet.columns = [
-        { header: 'Employee Code', key: 'employee_code', width: 14 },
-        { header: 'Employee Name', key: 'employee_name', width: 28 },
-        { header: 'Work Date', key: 'work_date', width: 12 },
-        { header: 'Check-in', key: 'check_in_time', width: 10 },
-        { header: 'Check-out', key: 'check_out_time', width: 10 },
-        { header: 'Minutes Late', key: 'minutes_late', width: 12 },
-        { header: 'Fine Blocks', key: 'fine_blocks', width: 12 },
-        { header: 'Total Fine (VND)', key: 'total_fine', width: 16 },
-        { header: 'Exempt', key: 'is_exempt', width: 10 },
-        { header: 'Note', key: 'note', width: 30 },
+        { header: 'Mã Nhân Viên', key: 'employee_code', width: 14 },
+        { header: 'Họ và Tên', key: 'employee_name', width: 28 },
+        { header: 'Ngày Làm Việc', key: 'work_date', width: 12 }, 
+        { header: 'Giờ Vào', key: 'check_in_time', width: 10 }, 
+        { header: 'Giờ Ra', key: 'check_out_time', width: 10 }, 
+        { header: 'Số Phút Muộn', key: 'minutes_late', width: 12 }, 
+        { header: 'Số Block Phạt', key: 'fine_blocks', width: 12 }, 
+        { header: 'Tổng Tiền Phạt (VND)', key: 'total_fine', width: 16 }, 
+        { header: 'Miễn Trừ', key: 'is_exempt', width: 10 }, 
+        { header: 'Ghi Chú', key: 'note', width: 30 },
       ];
       detail.forEach((row) =>
         detailSheet.addRow({

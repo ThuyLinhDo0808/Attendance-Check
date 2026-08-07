@@ -48,12 +48,12 @@ function getSheetsClient() {
 }
 
 const DETAIL_HEADERS = [
-  'Employee Code', 'Employee Name', 'Work Date', 'Check-in',
-  'Check-out', 'Minutes Late', 'Fine Blocks', 'Total Fine (VND)', 'Exempt', 'Note',
+  'Mã Nhân Viên', 'Họ và Tên', 'Ngày Làm Việc', 'Giờ Vào',
+  'Giờ Ra', 'Số Phút Muộn', 'Số Block Phạt', 'Tổng Tiền Phạt (VND)', 'Miễn Trừ', 'Ghi Chú',
 ];
 const SUMMARY_HEADERS = [
-  'Employee Code', 'Employee Name', 'Times Late',
-  'Total Minutes Late', 'Total Fine Blocks', 'Total Fine (VND)',
+  'Mã Nhân Viên', 'Họ và Tên', 'Số Lần Đi Muộn',
+  'Tổng Số Phút Muộn', 'Số Block Phạt', 'Tổng Tiền Phạt (VND)',
 ];
 
 function detailRowToArray(row) {
