@@ -21,7 +21,7 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
   const [error, setError] = useState(null);
 
   const [editingId, setEditingId] = useState(null);
-  const [draft, setDraft] = useState({ check_in_time: '', check_out_time: '', note: '' });
+  const [draft, setDraft] = useState({ check_in_time: '', check_out_time: '', note: '', is_exempt: false });
   const [rowBusy, setRowBusy] = useState(null);
   const [rowError, setRowError] = useState(null);
 
@@ -48,6 +48,7 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
       check_in_time: (log.check_in_time || '').slice(0, 5),
       check_out_time: (log.check_out_time || '').slice(0, 5),
       note: log.note || '',
+      is_exempt: log.is_exempt || false, // Khởi tạo dữ liệu
     });
   }
 
@@ -57,8 +58,8 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
   }
 
   async function saveEdit(log) {
-    if (!draft.check_in_time) {
-      setRowError('Check-in time is required.');
+    if (!draft.check_in_time && !draft.is_exempt) {
+      setRowError('Check-in time is required unless exempt.');
       return;
     }
     setRowBusy(log.id);
@@ -67,9 +68,10 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
       await api.logAttendance({
         employee_code: log.employee_code,
         work_date: log.work_date,
-        check_in_time: draft.check_in_time,
+        check_in_time: draft.check_in_time || null,
         check_out_time: draft.check_out_time || null,
         note: draft.note || null,
+        is_exempt: draft.is_exempt, // Đẩy cờ exempt xuống Backend
       });
       setEditingId(null);
       await load();
@@ -148,7 +150,7 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
                       {log.employee_code}
                     </span>
                   </p>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-3">
                     <label className="text-xs text-slate-500">
                       Check-in
                       <input
@@ -157,7 +159,8 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, check_in_time: e.target.value }))
                         }
-                        className="block mt-0.5 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+                        disabled={draft.is_exempt} // Khoá ô nếu đã chọn exempt
+                        className="block mt-0.5 w-24 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50 disabled:bg-slate-100"
                       />
                     </label>
                     <label className="text-xs text-slate-500">
@@ -168,9 +171,25 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, check_out_time: e.target.value }))
                         }
-                        className="block mt-0.5 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+                        className="block mt-0.5 w-24 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
                       />
                     </label>
+                    
+                    {/* Checkbox Exempt */}
+                    <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 self-end mb-1 mt-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={draft.is_exempt}
+                        onChange={(e) => setDraft(d => ({
+                          ...d,
+                          is_exempt: e.target.checked,
+                          check_in_time: e.target.checked ? '' : d.check_in_time // Xoá giờ check-in nếu chọn exempt
+                        }))}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent"
+                      />
+                      Exempt (No fine)
+                    </label>
+
                     <div className="flex items-end gap-1.5 ml-auto">
                       <button
                         onClick={() => saveEdit(log)}

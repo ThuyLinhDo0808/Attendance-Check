@@ -8,7 +8,7 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   const [error, setError] = useState(null);
 
   const [editingId, setEditingId] = useState(null);
-  const [draft, setDraft] = useState({ check_in_time: '', check_out_time: '', note: '' });
+  const [draft, setDraft] = useState({ check_in_time: '', check_out_time: '', note: '', is_exempt: false});
   const [rowBusy, setRowBusy] = useState(null); // id currently saving/deleting
   const [rowError, setRowError] = useState(null);
 
@@ -42,6 +42,7 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
       check_in_time: (h.check_in_time || '').slice(0, 5),
       check_out_time: (h.check_out_time || '').slice(0, 5),
       note: h.note || '',
+      is_exempt: h.is_exempt || false,
     });
   }
 
@@ -51,8 +52,8 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   }
 
   async function saveEdit(h) {
-    if (!draft.check_in_time) {
-      setRowError('Check-in time is required.');
+    if (!draft.check_in_time && !draft.is_exempt) {
+      setRowError('Check-in time is required unless marked as exempt.');
       return;
     }
     setRowBusy(h.id);
@@ -66,9 +67,10 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
       await api.logAttendance({
         employee_code: data.employee.employee_code,
         work_date: h.work_date,
-        check_in_time: draft.check_in_time,
+        check_in_time: draft.check_in_time || null,
         check_out_time: draft.check_out_time || null,
         note: draft.note || null,
+        is_exempt: draft.is_exempt,
       });
       setEditingId(null);
       await load();
@@ -160,6 +162,7 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                         <th className="px-6 py-2.5 font-medium">Date</th>
                         <th className="px-6 py-2.5 font-medium">Check-in</th>
                         <th className="px-6 py-2.5 font-medium">Check-out</th>
+                        <th className="px-6 py-2.5 font-medium text-center">Exempt</th>
                         <th className="px-6 py-2.5 font-medium text-right">Late</th>
                         <th className="px-6 py-2.5 font-medium text-right">Fine</th>
                         <th className="px-6 py-2.5 font-medium text-right">Actions</th>
@@ -184,7 +187,8 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                                   onChange={(e) =>
                                     setDraft((d) => ({ ...d, check_in_time: e.target.value }))
                                   }
-                                  className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+                                  disabled={draft.is_exempt} // UX tốt: Khoá ô check-in nếu đã tích exempt
+                                  className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50 disabled:bg-slate-100"
                                 />
                               </td>
                               <td className="px-6 py-2.5">
@@ -195,6 +199,20 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                                     setDraft((d) => ({ ...d, check_out_time: e.target.value }))
                                   }
                                   className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+                                />
+                              </td>
+                              {/* Ô Checkbox trạng thái Exempt */}
+                              <td className="px-6 py-2.5 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={draft.is_exempt}
+                                  onChange={(e) => setDraft(d => ({ 
+                                    ...d, 
+                                    is_exempt: e.target.checked,
+                                    // Tự động xoá giờ check-in nếu tick vào exempt
+                                    check_in_time: e.target.checked ? '' : d.check_in_time 
+                                  }))}
+                                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-accent focus:ring-accent"
                                 />
                               </td>
                               <td className="px-6 py-2.5 text-right text-xs text-slate-400" colSpan={2}>
@@ -226,17 +244,27 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                               {formatDate(h.work_date)}
                             </td>
                             <td className="px-6 py-2.5 font-mono-num text-slate-700">
-                              {formatTime(h.check_in_time)}
+                              {h.is_exempt ? '—' : formatTime(h.check_in_time)}
                             </td>
                             <td className="px-6 py-2.5 font-mono-num text-slate-500">
                               {formatTime(h.check_out_time)}
+                            </td>
+                            {/* Hiển thị trạng thái Exempt bằng huy hiệu (Badge) */}
+                            <td className="px-6 py-2.5 text-center">
+                              {h.is_exempt ? (
+                                <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                                  Yes
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
                             </td>
                             <td
                               className={`px-6 py-2.5 text-right font-mono-num ${
                                 late ? 'text-fine font-semibold' : 'text-ok'
                               }`}
                             >
-                              {late ? `${h.minutes_late} min` : 'On time'}
+                              {late ? `${h.minutes_late} min` : (h.is_exempt ? '—' : 'On time')}
                             </td>
                             <td className="px-6 py-2.5 text-right font-mono-num text-slate-700">
                               {late ? formatVNDExact(h.total_fine) : '—'}
