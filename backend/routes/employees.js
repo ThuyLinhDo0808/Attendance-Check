@@ -85,7 +85,7 @@ router.post('/', async (req, res, next) => {
 
     const { rows } = await pool.query(
       `INSERT INTO employees (employee_code, name, status, effective_start_date, is_current)
-       VALUES ($1, $2, $3, COALESCE($4, 'ACTIVE'), CURRENT_DATE, TRUE)
+       VALUES ($1, $2, COALESCE($3, 'ACTIVE'), CURRENT_DATE, TRUE)
        RETURNING id, employee_code, name, status, effective_start_date, effective_end_date, created_at`,
       [employee_code, name, status ? status.toUpperCase() : null]
     );

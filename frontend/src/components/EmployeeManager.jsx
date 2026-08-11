@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../api';
+import LiveOfficeMap from './LiveOfficeMap.jsx'; // <--- Thêm import
 
 export default function EmployeeManager({ employees, onEmployeeAdded }) {
   const [form, setForm] = useState({ name: '', employee_code: '' });
@@ -10,6 +11,9 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', status: '' });
   const [rowBusy, setRowBusy] = useState(null);
+
+  // MỚI: State để chuyển đổi góc nhìn (List vs Map)
+  const [viewMode, setViewMode] = useState('list'); 
 
   function updateForm(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -44,12 +48,12 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
     if (!editForm.name) return;
     setRowBusy(emp.id);
     try {
-      await api.updateEmployee(emp.id, { 
+      await api.updateEmployee(emp.employee_code, { 
         name: editForm.name, 
         status: editForm.status 
       });
       setEditingId(null);
-      onEmployeeAdded?.(); // Gọi hàm này để App.jsx tải lại danh sách
+      onEmployeeAdded?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,7 +66,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
       <header className="mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Employee Management</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Add new employee or update status (ACTIVE / INACTIVE) for existing employees.
+          Add new employee or update status. Switch to Map View to see seating arrangement.
         </p>
       </header>
 
@@ -73,7 +77,6 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form thêm mới */}
         <div className="lg:col-span-1">
           <form
             onSubmit={handleAdd}
@@ -113,94 +116,116 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
           </form>
         </div>
 
-        {/* Danh sách hiện tại */}
+        {/* Bảng điều khiển Bên phải */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-5 py-3 border-b border-slate-200 text-xs font-semibold uppercase tracking-wide text-slate-500 bg-slate-50">
-            Employee List ({employees.length})
+          {/* Thanh Toggle Header */}
+          <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {viewMode === 'list' ? `Employee List (${employees.length})` : 'Office Map'}
+            </span>
+            <div className="flex bg-slate-200/60 p-0.5 rounded-lg border border-slate-200">
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                List View
+              </button>
+              <button 
+                onClick={() => setViewMode('map')}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                Map View
+              </button>
+            </div>
           </div>
-          <div className="overflow-y-auto max-h-[500px]">
-            <table className="w-full text-sm">
-              <tbody className="divide-y divide-slate-100">
-                {employees.map((emp) => {
-                  const isEditing = editingId === emp.id;
-                  const isBusy = rowBusy === emp.id;
 
-                  // Trạng thái đang chỉnh sửa (Edit Mode)
-                  if (isEditing) {
+          {/* Nội dung thay đổi dựa theo ViewMode */}
+          <div className="overflow-y-auto max-h-[600px] flex-1">
+            {viewMode === 'map' ? (
+              <div className="p-4">
+                {/* Ở chế độ này, chúng ta chỉ truyền vào 1 date dummy hoặc không truyền gì để sơ đồ chỉ hiển thị chỗ ngồi mà không load điểm danh */}
+                <LiveOfficeMap employees={employees} />
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <tbody className="divide-y divide-slate-100">
+                  {employees.map((emp) => {
+                    const isEditing = editingId === emp.id;
+                    const isBusy = rowBusy === emp.id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={emp.id} className="bg-accent-soft/50">
+                          <td className="px-5 py-3">
+                            <input
+                              type="text"
+                              value={editForm.name}
+                              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-accent focus:ring-1 focus:ring-accent"
+                            />
+                          </td>
+                          <td className="px-5 py-3 text-slate-500 font-mono-num">{emp.employee_code}</td>
+                          <td className="px-5 py-3">
+                            <select
+                              value={editForm.status}
+                              onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                              className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold focus:border-accent"
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="INACTIVE">INACTIVE</option>
+                            </select>
+                          </td>
+                          <td className="px-5 py-3 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => saveEdit(emp)}
+                              disabled={isBusy}
+                              className="text-xs font-semibold text-white bg-accent hover:bg-indigo-600 rounded px-2.5 py-1.5 mr-2 disabled:opacity-50"
+                            >
+                              {isBusy ? 'Saving…' : 'Lưu'}
+                            </button>
+                            <button
+                              onClick={() => setEditingId(null)}
+                              disabled={isBusy}
+                              className="text-xs font-medium text-slate-500 hover:text-slate-800"
+                            >
+                              Hủy
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+
                     return (
-                      <tr key={emp.id} className="bg-accent-soft/50">
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={editForm.name}
-                            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                            className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-accent focus:ring-1 focus:ring-accent"
-                          />
+                      <tr key={emp.id} className="hover:bg-slate-50 group">
+                        <td className="px-5 py-3 font-medium text-slate-900">
+                          <span className={`inline-flex items-center gap-2 ${emp.status === 'INACTIVE' ? 'opacity-50' : ''}`}>
+                            {emp.name}
+                          </span>
                         </td>
-                        <td className="px-5 py-3 text-slate-500 font-mono-num">
+                        <td className={`px-5 py-3 font-mono-num ${emp.status === 'INACTIVE' ? 'text-slate-300' : 'text-slate-500'}`}>
                           {emp.employee_code}
                         </td>
                         <td className="px-5 py-3">
-                          <select
-                            value={editForm.status}
-                            onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                            className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold focus:border-accent"
-                          >
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="INACTIVE">INACTIVE</option>
-                          </select>
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            emp.status === 'ACTIVE' ? 'bg-ok-soft text-ok' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {emp.status}
+                          </span>
                         </td>
-                        <td className="px-5 py-3 text-right whitespace-nowrap">
+                        <td className="px-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
-                            onClick={() => saveEdit(emp)}
-                            disabled={isBusy}
-                            className="text-xs font-semibold text-white bg-accent hover:bg-indigo-600 rounded px-2.5 py-1.5 mr-2 disabled:opacity-50"
+                            onClick={() => startEdit(emp)}
+                            className="text-xs font-medium text-accent hover:underline"
                           >
-                            {isBusy ? 'Saving…' : 'Lưu'}
-                          </button>
-                          <button
-                            onClick={() => setEditingId(null)}
-                            disabled={isBusy}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-800"
-                          >
-                            Hủy
+                            Modify
                           </button>
                         </td>
                       </tr>
                     );
-                  }
-
-                  // Trạng thái hiển thị bình thường
-                  return (
-                    <tr key={emp.id} className="hover:bg-slate-50 group">
-                      <td className="px-5 py-3 font-medium text-slate-900">
-                        <span className={`inline-flex items-center gap-2 ${emp.status === 'INACTIVE' ? 'opacity-50' : ''}`}>
-                          {emp.name}
-                        </span>
-                      </td>
-                      <td className={`px-5 py-3 font-mono-num ${emp.status === 'INACTIVE' ? 'text-slate-300' : 'text-slate-500'}`}>
-                        {emp.employee_code}
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          emp.status === 'ACTIVE' ? 'bg-ok-soft text-ok' : 'bg-slate-100 text-slate-400'
-                        }`}>
-                          {emp.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => startEdit(emp)}
-                          className="text-xs font-medium text-accent hover:underline"
-                        >
-                          Modify
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>

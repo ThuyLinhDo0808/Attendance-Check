@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { formatVNDExact, formatBlocks } from '../utils/format';
 import LateWorkersPanel from './LateWorkersPanel.jsx';
+import LiveOfficeMap from './LiveOfficeMap.jsx'; // <--- Thêm import
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -34,20 +35,14 @@ export default function AttendanceLogger({ employees, onLogged }) {
   const [settings, setSettings] = useState(null);
 
   useEffect(() => {
-    api
-      .getSettings()
-      .then((rows) => {
-        const byKey = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-        setSettings({
-          workday_start_time: byKey.workday_start_time,
-          block_minutes: Number(byKey.block_minutes),
-          fine_per_block_vnd: Number(byKey.fine_per_block_vnd),
-        });
-      })
-      .catch(() => {
-        /* preview just won't show if settings can't be loaded; the save
-           action itself still works since fines are computed server-side */
+    api.getSettings().then((rows) => {
+      const byKey = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+      setSettings({
+        workday_start_time: byKey.workday_start_time,
+        block_minutes: Number(byKey.block_minutes),
+        fine_per_block_vnd: Number(byKey.fine_per_block_vnd),
       });
+    }).catch(() => {});
   }, []);
 
   const preview = useMemo(
@@ -64,7 +59,6 @@ export default function AttendanceLogger({ employees, onLogged }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
-
     if (!form.employee_code || !form.work_date) {
       setError('Employee and date are required.');
       return;
@@ -87,6 +81,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
       const saved = await api.logAttendance(payload);
       setResult(saved);
       setRefreshKey((k) => k + 1);
+      setForm(f => ({ ...f, employee_code: '', check_in_time: '', note: '' })); // Reset sau khi log thành công
       onLogged?.();
     } catch (err) {
       setError(err.message);
@@ -100,10 +95,19 @@ export default function AttendanceLogger({ employees, onLogged }) {
       <header className="mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Attendance Logger</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Log or correct a check-in / check-out for any employee and date. Lateness and fines
-          are computed automatically against the current workday cutoff.
+          Click vào một vị trí trên sơ đồ để chọn nhân viên, sau đó điền giờ Check-in.
         </p>
       </header>
+
+      {/* Sơ đồ chỗ ngồi chiếm toàn bộ chiều rộng phía trên */}
+      <div className="mb-6">
+        <LiveOfficeMap 
+          date={form.work_date} 
+          selectedCode={form.employee_code} 
+          onSeatClick={(code) => update('employee_code', code)} 
+          employees={employees}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <form
@@ -118,7 +122,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
                 onChange={(e) => update('employee_code', e.target.value)}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent"
               >
-                <option value="">Select employee…</option>
+                <option value="">-- Click on Map or Select --</option>
                 {activeEmployees.map((emp) => (
                   <option key={emp.employee_code} value={emp.employee_code}>
                     {emp.name} ({emp.employee_code})
@@ -139,7 +143,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                Check-in time {form.is_exempt && <span className="text-slate-400 font-normal">(not required — exempt)</span>}
+                Check-in time {form.is_exempt && <span className="text-slate-400 font-normal">(exempt)</span>}
               </label>
               <input
                 type="time"
@@ -173,19 +177,6 @@ export default function AttendanceLogger({ employees, onLogged }) {
             Exempt from lateness rules (approved leave, business trip, etc.)
           </label>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Note <span className="text-slate-400 font-normal">(optional)</span>
-            </label>
-            <textarea
-              value={form.note}
-              onChange={(e) => update('note', e.target.value)}
-              rows={2}
-              placeholder="e.g. Traffic, medical appointment…"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:ring-1 focus:ring-accent"
-            />
-          </div>
-
           {error && (
             <div className="rounded-lg border border-fine/30 bg-fine-soft px-3 py-2 text-sm text-fine">
               {error}
@@ -204,40 +195,25 @@ export default function AttendanceLogger({ employees, onLogged }) {
         {/* Live preview + last result */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
-              Live fine preview
-            </h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Live fine preview</h3>
             {preview?.exempt ? (
               <p className="text-sm text-ok font-medium">Exempt — no fine will be charged.</p>
             ) : preview ? (
               <dl className="space-y-2.5 text-sm">
                 <Row label="Minutes late" value={`${preview.minutesLate} min`} />
                 <Row label="Fine blocks" value={formatBlocks(preview.fineBlocks)} />
-                <Row
-                  label="Total fine"
-                  value={formatVNDExact(preview.totalFine)}
-                  emphasize={preview.totalFine > 0}
-                />
+                <Row label="Total fine" value={formatVNDExact(preview.totalFine)} emphasize={preview.totalFine > 0} />
               </dl>
             ) : (
               <p className="text-sm text-slate-400">Enter a check-in time to preview the fine.</p>
             )}
-            <p className="mt-3 text-xs text-slate-400">
-              Preview only — the saved value is always computed server-side.
-            </p>
           </div>
 
           {result && (
             <div className="bg-ok-soft border border-ok/30 rounded-xl p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-ok mb-3">
-                Saved successfully
-              </h3>
-              {result.is_exempt ? (
-                <p className="text-sm text-ok">Marked exempt — no fine charged.</p>
-              ) : (
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ok mb-3">Saved successfully</h3>
+              {!result.is_exempt && (
                 <dl className="space-y-2.5 text-sm">
-                  <Row label="Minutes late" value={`${result.minutes_late} min`} />
-                  <Row label="Fine blocks" value={formatBlocks(result.fine_blocks)} />
                   <Row label="Total fine" value={formatVNDExact(result.total_fine)} emphasize />
                 </dl>
               )}
@@ -257,9 +233,7 @@ function Row({ label, value, emphasize }) {
   return (
     <div className="flex items-center justify-between">
       <dt className="text-slate-500">{label}</dt>
-      <dd className={`font-mono-num ${emphasize ? 'text-fine font-semibold' : 'text-slate-800'}`}>
-        {value}
-      </dd>
+      <dd className={`font-mono-num ${emphasize ? 'text-fine font-semibold' : 'text-slate-800'}`}>{value}</dd>
     </div>
   );
 }
