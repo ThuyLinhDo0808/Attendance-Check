@@ -7,14 +7,22 @@ import EmployeeFineSheet from './components/EmployeeFineSheet.jsx';
 import Settings from './components/Settings.jsx';
 import WeeklyReport from './components/WeeklyReport.jsx';
 import EmployeeManager from './components/EmployeeManager.jsx';
+import { 
+  ClockIcon, 
+  PresentationChartBarIcon, 
+  CalendarDaysIcon, 
+  TableCellsIcon, 
+  UserGroupIcon, 
+  Cog6ToothIcon 
+} from '@heroicons/react/24/outline';
 
 const TABS = [
-  { id: 'logger', label: 'Attendance Logger', glyph: '⏱' },
-  { id: 'analytics', label: 'Company Analytics', glyph: '▤' },
-  { id: 'weekly', label: 'Weekly Report', glyph: '📅' },
-  { id: 'sheet', label: 'Employee Fine Sheet', glyph: '≣' },
-  { id: 'employees', label: 'Employees', glyph: '👥' },
-  { id: 'settings', label: 'Settings', glyph: '⚙' },
+  { id: 'logger', label: 'Attendance Logger', icon: ClockIcon },
+  { id: 'analytics', label: 'Company Analytics', icon: PresentationChartBarIcon },
+  { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, // Đã đồng bộ
+  { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
+  { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, // Đã đồng bộ
+  { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
 ];
 
 export default function App() {
@@ -84,7 +92,7 @@ export default function App() {
                 }`}
             >
               <span className="text-base w-5 text-center" aria-hidden="true">
-                {tab.glyph}
+                <tab.icon className="h-5 w-5" />
               </span>
               {tab.label}
             </button>
