@@ -64,4 +64,20 @@ export const api = {
 
   getSyncStatus: () => request('/sync/status'),
   syncMonthNow: (month) => request('/sync/monthly', { method: 'POST', body: JSON.stringify({ month }) }),
+
+  getSeats: async () => {
+    const res = await fetch('/api/seats');
+    if (!res.ok) throw new Error('Lỗi khi tải sơ đồ ghế');
+    return res.json();
+  },
+  // Cập nhật vị trí ghế
+  assignSeat: async (seat_id, employee_code) => {
+    const res = await fetch('/api/seats/assign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seat_id, employee_code }), // employee_code = null nếu bỏ trống ghế
+    });
+    if (!res.ok) throw new Error('Lỗi khi cập nhật ghế');
+    return res.json();
+  }
 };

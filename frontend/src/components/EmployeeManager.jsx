@@ -144,7 +144,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
             {viewMode === 'map' ? (
               <div className="p-4">
                 {/* Ở chế độ này, chúng ta chỉ truyền vào 1 date dummy hoặc không truyền gì để sơ đồ chỉ hiển thị chỗ ngồi mà không load điểm danh */}
-                <LiveOfficeMap employees={employees} />
+                <LiveOfficeMap employees={employees} isEditMode={true} />
               </div>
             ) : (
               <table className="w-full text-sm">
