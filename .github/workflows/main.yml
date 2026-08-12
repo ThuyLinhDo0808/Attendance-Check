@@ -1,0 +1,30 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+
+    - name: Cài đặt Dependencies
+      run: npm install
+
+    - name: Kiểm tra Code (Linting - Nếu có)
+      run: npm run lint --if-present
+
+    - name: Build Frontend React
+      run: npm run build --if-present
