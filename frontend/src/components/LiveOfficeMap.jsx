@@ -85,7 +85,7 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
     try {
       const [logsData, seatsData] = await Promise.all([
         date ? api.getAttendanceLogs({ date, lateOnly: false }) : Promise.resolve([]),
-        api.getSeats()
+        api.getSeats(date)
       ]);
       
       setLogs(logsData);
@@ -120,7 +120,7 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
   }, [logs]);
 
   const getSeatColor = (code, isOccupied) => {
-    if (selectedCode === code) return '#4F5FEA'; 
+    if (code && selectedCode && selectedCode === code) return '#4F5FEA';
     if (!isOccupied) return '#f1f5f9';
     
     const status = attendanceMap[code];

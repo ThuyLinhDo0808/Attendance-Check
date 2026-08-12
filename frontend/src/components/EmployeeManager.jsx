@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../api';
 import LiveOfficeMap from './LiveOfficeMap.jsx';
-import { PlusIcon, UserGroupIcon, MapIcon, PencilSquareIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, UserGroupIcon, MapIcon, PencilSquareIcon, CheckIcon, XMarkIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 const StatusBadge = ({ status }) => {
   const isActive = status === 'ACTIVE';
@@ -23,6 +23,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
   const [editForm, setEditForm] = useState({ name: '', status: '' });
   const [rowBusy, setRowBusy] = useState(null);
   const [viewMode, setViewMode] = useState('list');
+  const [timeTravelDate, setTimeTravelDate] = useState('');
 
   function updateForm(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -166,13 +167,28 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
         <div className="xl:col-span-3 bg-white rounded-3xl border border-slate-100 p-2 shadow-sm flex flex-col min-h-[500px]">
           {viewMode === 'map' ? (
             <div className="p-6 flex-1 flex flex-col">
-               <div className='flex items-center justify-between mb-6'>
-                  <h3 className="text-lg font-bold text-slate-950">Office Layout</h3>
-                  <div className='text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full'>Edit Mode</div>
-               </div>
-               <div className='flex-1 border border-slate-100 rounded-2xl bg-slate-50/50'>
-                  <LiveOfficeMap employees={employees} isEditMode={true} />
-               </div>
+              <div className='flex flex-wrap items-center justify-between mb-6 gap-4'>
+                  <h3 className="text-lg font-bold text-slate-950">Sơ đồ chỗ ngồi văn phòng</h3>
+                  
+                  {/* THANH CÔNG CỤ TIME-TRAVEL */}
+                  <div className='flex items-center gap-3 bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl'>
+                    <ClockIcon className="h-5 w-5 text-indigo-600" />
+                    <span className="text-sm font-semibold text-indigo-900">Cỗ máy thời gian:</span>
+                    <input 
+                        type="date" 
+                        value={timeTravelDate}
+                        onChange={(e) => setTimeTravelDate(e.target.value)}
+                        className="rounded-lg border border-indigo-200 px-3 py-1.5 text-sm font-mono text-indigo-700 focus:ring-2 focus:ring-indigo-300 outline-none"
+                    />
+                    {timeTravelDate && (
+                      <button onClick={() => setTimeTravelDate('')} className="text-xs text-indigo-500 hover:text-indigo-800 underline">Về hiện tại</button>
+                    )}
+                  </div>
+              </div>
+              <div className='flex-1 border border-slate-100 rounded-2xl bg-slate-50/50'>
+                  {/* Truyền thêm prop date vào LiveOfficeMap để nó gọi API có as_of */}
+                  <LiveOfficeMap employees={employees} isEditMode={!timeTravelDate} date={timeTravelDate} />
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">

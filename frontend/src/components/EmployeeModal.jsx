@@ -12,6 +12,9 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   const [rowBusy, setRowBusy] = useState(null); // id currently saving/deleting
   const [rowError, setRowError] = useState(null);
 
+  const [expandedAuditId, setExpandedAuditId] = useState(null);
+  const [auditData, setAuditData] = useState([]);
+
   const load = useCallback(() => {
     setLoading(true);
     return api
@@ -99,204 +102,121 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
     }
   }
 
+  async function toggleAudit(logId) {
+    if (expandedAuditId === logId) {
+      setExpandedAuditId(null);
+      return;
+    }
+    setExpandedAuditId(logId);
+    try {
+      const audits = await api.getAttendanceAudit(logId);
+      setAuditData(audits);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   return (
-    <div
-      className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {loading && !data ? (
-          <p className="p-8 text-sm text-slate-400">Loading history…</p>
-        ) : error ? (
-          <p className="p-8 text-sm text-fine">{error}</p>
-        ) : (
-          data && (
-            <>
-              <div className="px-6 py-5 border-b border-slate-200 flex items-start justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">{data.employee.name}</h3>
-                  <p className="text-sm text-slate-500 font-mono-num">
-                    {data.employee.employee_code} · {data.employee.status}
-                  </p>
-                </div>
-                <button
-                  onClick={onClose}
-                  aria-label="Close"
-                  className="text-slate-400 hover:text-slate-700 text-xl leading-none px-1"
-                >
-                  ×
-                </button>
-              </div>
+    <React.Fragment key={h.id}>
+      <tr className={`group ${late ? 'bg-fine-soft/40' : ''}`}>
+        <td className="px-6 py-2.5 text-slate-700 font-mono-num">
+          {formatDate(h.work_date)}
+        </td>
+        <td className="px-6 py-2.5 font-mono-num text-slate-700">
+          {h.is_exempt ? '—' : formatTime(h.check_in_time)}
+        </td>
+        <td className="px-6 py-2.5 font-mono-num text-slate-500">
+          {formatTime(h.check_out_time)}
+        </td>
+        {/* Hiển thị trạng thái Exempt bằng huy hiệu (Badge) */}
+        <td className="px-6 py-2.5 text-center">
+          {h.is_exempt ? (
+            <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+              Yes
+            </span>
+          ) : (
+            <span className="text-slate-300">—</span>
+          )}
+        </td>
+        <td
+          className={`px-6 py-2.5 text-right font-mono-num ${
+            late ? 'text-fine font-semibold' : 'text-ok'
+          }`}
+        >
+          {late ? `${h.minutes_late} min` : (h.is_exempt ? '—' : 'On time')}
+        </td>
+        <td className="px-6 py-2.5 text-right font-mono-num text-slate-700">
+          {late ? formatVNDExact(h.total_fine) : '—'}
+        </td>
+        <td className="px-6 py-2.5 text-right whitespace-nowrap">
+          <button
+            onClick={() => startEdit(h)}
+            disabled={busy}
+            className="text-xs font-medium text-accent hover:underline mr-3 disabled:opacity-50"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => deleteLog(h)}
+            disabled={busy}
+            className="text-xs font-medium text-fine hover:underline disabled:opacity-50 mr-3"
+          >
+            {busy ? '…' : 'Delete'}
+          </button>
+          {/* NÚT MỚI: Bật/Tắt xem lịch sử */}
+          <button
+            onClick={() => toggleAudit(h.id)}
+            disabled={busy}
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline disabled:opacity-50"
+          >
+            Edit History
+          </button>
+        </td>
+      </tr>
 
-              <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-slate-200 bg-slate-50">
-                <Stat label="Times late" value={data.stats.times_late} />
-                <Stat label="Minutes late" value={`${data.stats.total_minutes_late}`} />
-                <Stat label="Fine blocks" value={formatBlocks(data.stats.total_fine_blocks)} />
-                <Stat
-                  label="Total fine"
-                  value={formatVNDExact(data.stats.total_fine)}
-                  emphasize
-                />
-              </div>
-
-              {rowError && (
-                <div className="mx-6 mt-4 rounded-lg border border-fine/30 bg-fine-soft px-3 py-2 text-sm text-fine">
-                  {rowError}
-                </div>
+      {/* GIAO DIỆN AUDIT TRAIL (Chỉ hiện khi bấm vào nút Lịch sử) */}
+      {expandedAuditId === h.id && (
+        <tr className="bg-slate-50/80 border-b border-slate-200">
+          <td colSpan="7" className="p-4">
+            <div className="pl-6 border-l-2 border-indigo-200 ml-4 space-y-4">
+              {auditData.length === 0 ? (
+                <p className="text-xs text-slate-400 font-medium">Loading audit data...</p>
+              ) : (
+                auditData.map((audit) => (
+                  <div key={audit.audit_id} className="relative">
+                    {/* Dấu chấm Timeline */}
+                    <span className="absolute -left-[25px] top-1 h-3 w-3 rounded-full bg-indigo-400 ring-4 ring-slate-50"></span>
+                    
+                    {/* Người sửa & Thời gian */}
+                    <div className="text-sm text-slate-800 flex items-center gap-2">
+                      <span className="font-bold">{audit.changed_by || 'Admin'}</span> 
+                      <span>performed</span> 
+                      <span className="font-mono text-[10px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-700 font-bold">
+                        {audit.action_type}
+                      </span>
+                      <span className="text-slate-500 text-xs ml-1">
+                        at {new Date(audit.changed_at).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+                    
+                    {/* Chi tiết dữ liệu tại thời điểm đó */}
+                    <div className="mt-1.5 text-xs text-slate-600 grid grid-cols-2 gap-x-4 gap-y-1.5 bg-white p-2.5 rounded-lg border border-slate-200 w-fit shadow-sm">
+                      <p>Check-in: <span className="font-mono font-semibold text-slate-900">{audit.check_in_time ? audit.check_in_time.slice(0,5) : 'Empty'}</span></p>
+                      <p>Exempt: <span className={`font-semibold ${audit.is_exempt ? 'text-indigo-600' : 'text-slate-900'}`}>{audit.is_exempt ? 'YES' : 'NO'}</span></p>
+                      <p className="col-span-2">
+                        Note: <span className={audit.note ? "italic text-slate-800" : "italic text-slate-400"}>
+                          {audit.note || 'No notes'}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                ))
               )}
-
-              <div className="overflow-y-auto flex-1">
-                {data.history.length === 0 ? (
-                  <p className="p-8 text-sm text-slate-400 text-center">
-                    No attendance logs recorded for this employee yet.
-                  </p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-white">
-                      <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-                        <th className="px-6 py-2.5 font-medium">Date</th>
-                        <th className="px-6 py-2.5 font-medium">Check-in</th>
-                        <th className="px-6 py-2.5 font-medium">Check-out</th>
-                        <th className="px-6 py-2.5 font-medium text-center">Exempt</th>
-                        <th className="px-6 py-2.5 font-medium text-right">Late</th>
-                        <th className="px-6 py-2.5 font-medium text-right">Fine</th>
-                        <th className="px-6 py-2.5 font-medium text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {data.history.map((h) => {
-                        const late = h.minutes_late > 0;
-                        const isEditing = editingId === h.id;
-                        const busy = rowBusy === h.id;
-
-                        if (isEditing) {
-                          return (
-                            <tr key={h.id} className="bg-accent-soft/50">
-                              <td className="px-6 py-2.5 text-slate-700 font-mono-num">
-                                {formatDate(h.work_date)}
-                              </td>
-                              <td className="px-6 py-2.5">
-                                <input
-                                  type="time"
-                                  value={draft.check_in_time}
-                                  onChange={(e) =>
-                                    setDraft((d) => ({ ...d, check_in_time: e.target.value }))
-                                  }
-                                  disabled={draft.is_exempt} // UX tốt: Khoá ô check-in nếu đã tích exempt
-                                  className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50 disabled:bg-slate-100"
-                                />
-                              </td>
-                              <td className="px-6 py-2.5">
-                                <input
-                                  type="time"
-                                  value={draft.check_out_time}
-                                  onChange={(e) =>
-                                    setDraft((d) => ({ ...d, check_out_time: e.target.value }))
-                                  }
-                                  className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
-                                />
-                              </td>
-                              {/* Ô Checkbox trạng thái Exempt */}
-                              <td className="px-6 py-2.5 text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={draft.is_exempt}
-                                  onChange={(e) => setDraft(d => ({ 
-                                    ...d, 
-                                    is_exempt: e.target.checked,
-                                    // Tự động xoá giờ check-in nếu tick vào exempt
-                                    check_in_time: e.target.checked ? '' : d.check_in_time 
-                                  }))}
-                                  className="h-4 w-4 cursor-pointer rounded border-slate-300 text-accent focus:ring-accent"
-                                />
-                              </td>
-                              <td className="px-6 py-2.5 text-right text-xs text-slate-400" colSpan={2}>
-                                recalculated on save
-                              </td>
-                              <td className="px-6 py-2.5 text-right whitespace-nowrap">
-                                <button
-                                  onClick={() => saveEdit(h)}
-                                  disabled={busy}
-                                  className="text-xs font-semibold text-white bg-accent hover:bg-indigo-600 rounded px-2.5 py-1 disabled:opacity-50 mr-1.5"
-                                >
-                                  {busy ? 'Saving…' : 'Save'}
-                                </button>
-                                <button
-                                  onClick={cancelEdit}
-                                  disabled={busy}
-                                  className="text-xs font-medium text-slate-500 hover:text-slate-800 px-2 py-1"
-                                >
-                                  Cancel
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        }
-
-                        return (
-                          <tr key={h.id} className={`group ${late ? 'bg-fine-soft/40' : ''}`}>
-                            <td className="px-6 py-2.5 text-slate-700 font-mono-num">
-                              {formatDate(h.work_date)}
-                            </td>
-                            <td className="px-6 py-2.5 font-mono-num text-slate-700">
-                              {h.is_exempt ? '—' : formatTime(h.check_in_time)}
-                            </td>
-                            <td className="px-6 py-2.5 font-mono-num text-slate-500">
-                              {formatTime(h.check_out_time)}
-                            </td>
-                            {/* Hiển thị trạng thái Exempt bằng huy hiệu (Badge) */}
-                            <td className="px-6 py-2.5 text-center">
-                              {h.is_exempt ? (
-                                <span className="inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
-                                  Yes
-                                </span>
-                              ) : (
-                                <span className="text-slate-300">—</span>
-                              )}
-                            </td>
-                            <td
-                              className={`px-6 py-2.5 text-right font-mono-num ${
-                                late ? 'text-fine font-semibold' : 'text-ok'
-                              }`}
-                            >
-                              {late ? `${h.minutes_late} min` : (h.is_exempt ? '—' : 'On time')}
-                            </td>
-                            <td className="px-6 py-2.5 text-right font-mono-num text-slate-700">
-                              {late ? formatVNDExact(h.total_fine) : '—'}
-                            </td>
-                            <td className="px-6 py-2.5 text-right whitespace-nowrap">
-                              <button
-                                onClick={() => startEdit(h)}
-                                disabled={busy}
-                                className="text-xs font-medium text-accent hover:underline mr-3 disabled:opacity-50"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => deleteLog(h)}
-                                disabled={busy}
-                                className="text-xs font-medium text-fine hover:underline disabled:opacity-50"
-                              >
-                                {busy ? '…' : 'Delete'}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </>
-          )
-        )}
-      </div>
-    </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
   );
 }
 

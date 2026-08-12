@@ -169,4 +169,20 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/attendance/audit/:log_id
+ * Xem lịch sử thay đổi (Audit Trail) của một record điểm danh
+ */
+router.get('/audit/:log_id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM attendance_audits WHERE log_id = $1 ORDER BY changed_at DESC`,
+      [req.params.log_id]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

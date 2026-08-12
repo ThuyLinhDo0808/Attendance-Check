@@ -65,19 +65,35 @@ export const api = {
   getSyncStatus: () => request('/sync/status'),
   syncMonthNow: (month) => request('/sync/monthly', { method: 'POST', body: JSON.stringify({ month }) }),
 
-  getSeats: async () => {
-    const res = await fetch('/api/seats');
-    if (!res.ok) throw new Error('Lỗi khi tải sơ đồ ghế');
+  getSeats: async (asOfDate) => {
+    const url = asOfDate ? `/api/seats?as_of=${asOfDate}` : '/api/seats';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Không thể tải sơ đồ ghế');
     return res.json();
   },
-  // Cập nhật vị trí ghế
-  assignSeat: async (seat_id, employee_code) => {
+
+  getAttendanceAudit: async (logId) => {
+    const res = await fetch(`/api/attendance/audit/${logId}`);
+    if (!res.ok) throw new Error('Lỗi khi tải lịch sử sửa đổi');
+    return res.json();
+  },
+
+  assignSeat: async (seatId, employeeCode) => {
     const res = await fetch('/api/seats/assign', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seat_id, employee_code }), // employee_code = null nếu bỏ trống ghế
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        seat_id: seatId,
+        employee_code: employeeCode,
+      }),
     });
-    if (!res.ok) throw new Error('Lỗi khi cập nhật ghế');
+    
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Đã xảy ra lỗi khi cập nhật chỗ ngồi');
+    }
     return res.json();
-  }
+  },  
 };

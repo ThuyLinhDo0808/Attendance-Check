@@ -2,47 +2,78 @@ const express = require('express');
 const pool = require('../db/pool');
 const router = express.Router();
 
-// Lấy toàn bộ sơ đồ ghế đang được gán
+// Lấy sơ đồ ghế (Hỗ trợ Time-Travel qua query ?as_of=)
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT sa.seat_id, sa.employee_code, e.name 
-       FROM seat_assignments sa
-       JOIN employees e ON sa.employee_code = e.employee_code 
-       WHERE e.is_current = TRUE`
-    );
+    const { as_of } = req.query;
+    let query = '';
+    const params = [];
+
+    if (as_of) {
+      params.push(as_of);
+      query = `
+        SELECT sa.seat_id, sa.employee_code, e.name 
+        FROM seat_assignments sa
+        JOIN employees e ON sa.employee_code = e.employee_code 
+          AND e.effective_start_date <= $1::date 
+          AND (e.effective_end_date IS NULL OR e.effective_end_date > $1::date)
+        WHERE sa.effective_start_date <= $1::date 
+          AND (sa.effective_end_date IS NULL OR sa.effective_end_date > $1::date)
+          AND sa.employee_code IS NOT NULL
+      `;
+    } else {
+      query = `
+        SELECT sa.seat_id, sa.employee_code, e.name 
+        FROM seat_assignments sa
+        JOIN employees e ON sa.employee_code = e.employee_code AND e.is_current = TRUE
+        WHERE sa.is_current = TRUE AND sa.employee_code IS NOT NULL
+      `;
+    }
+    
+    const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     next(err);
   }
 });
 
-// Cập nhật vị trí ghế (Gán mới, đổi chỗ, hoặc xóa)
+// Cập nhật ghế chuẩn SCD2
 router.post('/assign', async (req, res, next) => {
-  const { seat_id, employee_code } = req.body;
-  
+  const client = await pool.connect();
   try {
-    // Nếu employee_code là null -> Có người nghỉ/xóa khỏi ghế
-    if (!employee_code) {
-      await pool.query('DELETE FROM seat_assignments WHERE seat_id = $1', [seat_id]);
-      return res.json({ success: true, message: 'Seat cleared' });
+    const { seat_id, employee_code } = req.body;
+    await client.query('BEGIN');
+
+    // Đóng phiên bản cũ của ghế này
+    await client.query(
+      `UPDATE seat_assignments SET is_current = FALSE, effective_end_date = CURRENT_DATE 
+       WHERE seat_id = $1 AND is_current = TRUE`,
+      [seat_id]
+    );
+
+    if (employee_code) {
+       // Đóng phiên bản ghế cũ của nhân viên này (nếu họ đang ngồi chỗ khác)
+       await client.query(
+          `UPDATE seat_assignments SET is_current = FALSE, effective_end_date = CURRENT_DATE 
+           WHERE employee_code = $1 AND is_current = TRUE`,
+          [employee_code]
+       );
+       
+       // Thêm phiên bản mới
+       await client.query(
+          `INSERT INTO seat_assignments (seat_id, employee_code, effective_start_date, is_current) 
+           VALUES ($1, $2, CURRENT_DATE, TRUE)`,
+          [seat_id, employee_code]
+       );
     }
 
-    // Upsert: Cập nhật người ngồi vào ghế (nếu nhân viên này đã có ghế khác, ghế cũ sẽ bị bỏ trống do logic quản lý ở client hoặc trigger DB)
-    // Để đơn giản, ta xóa ghế cũ của nhân viên này (nếu có) trước khi gán ghế mới
-    await pool.query('DELETE FROM seat_assignments WHERE employee_code = $1', [employee_code]);
-    
-    await pool.query(
-      `INSERT INTO seat_assignments (seat_id, employee_code, updated_at) 
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (seat_id) 
-       DO UPDATE SET employee_code = EXCLUDED.employee_code, updated_at = NOW()`,
-      [seat_id, employee_code]
-    );
-    
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
+    await client.query('ROLLBACK');
     next(err);
+  } finally {
+    client.release();
   }
 });
 
