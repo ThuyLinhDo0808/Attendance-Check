@@ -56,11 +56,11 @@ const SEAT_LAYOUT = [
 // Component Legend cho chuyên nghiệp
 const MapLegend = () => (
     <div className="flex flex-wrap gap-x-5 gap-y-2 p-4 bg-white rounded-xl border border-slate-100 shadow-inner text-xs text-slate-600 mt-4 mx-4">
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#f1f5f9] border border-slate-300"></span> Trống / Inactive</div>
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#cbd5e1]"></span> Active / Chưa log</div>
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#22c55e]"></span> Đúng giờ</div>
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#ef4444]"></span> Muộn</div>
-        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#4F5FEA]"></span> Đang chọn</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#f1f5f9] border border-slate-300"></span> Blank / Inactive</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#cbd5e1]"></span> Active / No logging</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#22c55e]"></span> On Time</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#ef4444]"></span> Late</div>
+        <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-[#4F5FEA]"></span> Selected</div>
     </div>
 );
 

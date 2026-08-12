@@ -34,7 +34,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
     e.preventDefault();
     setError(null);
     if (!form.name || !form.employee_code) {
-      setError('Tên và mã nhân viên là bắt buộc.');
+      setError('Name and Employee Code are required.');
       return;
     }
     setSubmitting(true);
@@ -168,12 +168,12 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
           {viewMode === 'map' ? (
             <div className="p-6 flex-1 flex flex-col">
               <div className='flex flex-wrap items-center justify-between mb-6 gap-4'>
-                  <h3 className="text-lg font-bold text-slate-950">Sơ đồ chỗ ngồi văn phòng</h3>
+                  <h3 className="text-lg font-bold text-slate-950">Office Map</h3>
                   
                   {/* THANH CÔNG CỤ TIME-TRAVEL */}
                   <div className='flex items-center gap-3 bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl'>
                     <ClockIcon className="h-5 w-5 text-indigo-600" />
-                    <span className="text-sm font-semibold text-indigo-900">Cỗ máy thời gian:</span>
+                    <span className="text-sm font-semibold text-indigo-900">Time:</span>
                     <input 
                         type="date" 
                         value={timeTravelDate}
@@ -181,7 +181,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
                         className="rounded-lg border border-indigo-200 px-3 py-1.5 text-sm font-mono text-indigo-700 focus:ring-2 focus:ring-indigo-300 outline-none"
                     />
                     {timeTravelDate && (
-                      <button onClick={() => setTimeTravelDate('')} className="text-xs text-indigo-500 hover:text-indigo-800 underline">Về hiện tại</button>
+                      <button onClick={() => setTimeTravelDate('')} className="text-xs text-indigo-500 hover:text-indigo-800 underline">Back to Present</button>
                     )}
                   </div>
               </div>

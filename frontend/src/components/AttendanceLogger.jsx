@@ -119,7 +119,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
           <div className="p-5 flex items-center justify-between border-b border-slate-100 mb-2">
               <h3 className="text-lg font-bold text-slate-950 flex items-center gap-2">
                   <MapIcon className='h-5 w-5 text-indigo-500'/>
-                  Interactive Map
+                  Office Map
               </h3>
               <input
                 type="date"

@@ -92,7 +92,7 @@ FOR EACH ROW EXECUTE FUNCTION audit_attendance_changes();
 
 -- ------------------------------------------------------------
 -- Seat Assignments (SCD2)
--- Sơ đồ ghế ngồi theo thời gian thực và quá khứ
+-- Office seating map over time
 -- ------------------------------------------------------------
 CREATE TABLE seat_assignments (
     id                     SERIAL PRIMARY KEY,
