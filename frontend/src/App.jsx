@@ -8,6 +8,7 @@ import Settings from './components/Settings.jsx';
 import WeeklyReport from './components/WeeklyReport.jsx';
 import EmployeeManager from './components/EmployeeManager.jsx';
 import AdminQRCode from './components/AdminQRCode.jsx';
+import PendingExcuses from './components/PendingExcuses.jsx';
 import { 
   ClockIcon, 
   PresentationChartBarIcon, 
@@ -15,7 +16,8 @@ import {
   TableCellsIcon, 
   UserGroupIcon, 
   Cog6ToothIcon ,
-  QrCodeIcon
+  QrCodeIcon,
+  BellAlertIcon
 } from '@heroicons/react/24/outline';
 
 const TABS = [
@@ -26,6 +28,7 @@ const TABS = [
   { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
   { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, // Đã đồng bộ
   { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
+  { id: 'excuses', label: 'Pending Excuses', icon: BellAlertIcon },
 ];
 
 export default function App() {
@@ -34,6 +37,7 @@ export default function App() {
   const [employeesError, setEmployeesError] = useState(null);
   const [sidebarSettings, setSidebarSettings] = useState(null);
   const [toast, setToast] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -54,10 +58,20 @@ export default function App() {
     }
   }, []);
 
+  const loadPendingCount = useCallback(async () => {
+    try {
+      const data = await api.getPendingExcuses();
+      setPendingCount(data.length);
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
+
   useEffect(() => {
     loadEmployees();
     loadSidebarSettings();
-  }, [loadEmployees, loadSidebarSettings]);
+    loadPendingCount();
+  }, [loadEmployees, loadSidebarSettings, loadPendingCount]);
 
   const showToast = useCallback((message, tone = 'ok') => {
     setToast({ message, tone, key: Date.now() });
@@ -87,17 +101,25 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
                 ${
                   activeTab === tab.id
                     ? 'bg-accent text-white shadow-sm'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
             >
-              <span className="text-base w-5 text-center" aria-hidden="true">
-                <tab.icon className="h-5 w-5" />
-              </span>
-              {tab.label}
+              <div className="flex items-center gap-3">
+                <span className="text-base w-5 text-center" aria-hidden="true">
+                  <tab.icon className="h-5 w-5" />
+                </span>
+                {tab.label}
+              </div>
+              
+              {tab.id === 'excuses' && pendingCount > 0 && (
+                <span className="bg-red-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow">
+                  {pendingCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -157,6 +179,14 @@ export default function App() {
               }}
             />
           )}
+
+          {activeTab === 'excuses' && (
+            <PendingExcuses onResolved={() => {
+              showToast('Đã xử lý đơn thành công!');
+              loadPendingCount(); // Cập nhật lại số đếm trên chuông
+            }} />
+          )}
+
         </div>
       </main>
 

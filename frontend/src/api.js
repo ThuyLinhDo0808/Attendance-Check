@@ -96,4 +96,7 @@ export const api = {
     }
     return res.json();
   },  
+
+  getPendingExcuses: () => request('/attendance/pending-excuses'),
+  resolveExcuse: (payload) => request('/attendance/resolve-excuse', { method: 'POST', body: JSON.stringify(payload) }),
 };
