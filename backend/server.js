@@ -9,6 +9,7 @@ const settingsRouter = require('./routes/settings');
 const exportRouter = require('./routes/export');
 const syncRouter = require('./routes/sync');
 const seatsRouter = require('./routes/seats');
+const authRouter = require('./routes/auth');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/export', exportRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/seats', seatsRouter);
+app.use('/api/auth', authRouter);
 // 404 fallback
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });

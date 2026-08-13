@@ -185,4 +185,143 @@ router.get('/audit/:log_id', async (req, res, next) => {
   }
 });
 
+/**
+ * POST /api/attendance/checkin
+ * Endpoint dành cho App Mobile quét mã QR.
+ */
+router.post('/checkin', async (req, res, next) => {
+  try {
+    const { employee_code, qr_data } = req.body;
+
+    if (!employee_code) {
+      return res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
+    }
+
+    // 1. Lấy ngày giờ hiện tại
+    const now = new Date();
+    // Chuyển múi giờ về giờ Việt Nam (hoặc local timezone)
+    const work_date = now.toLocaleDateString('en-CA'); // Trả ra định dạng YYYY-MM-DD
+    const check_in_time = now.toTimeString().slice(0, 8); // Trả ra định dạng HH:MM:SS
+
+    console.log(`📌 App Check-in - Mã NV: ${employee_code}, Dữ liệu QR: ${qr_data}, Lúc: ${check_in_time}`);
+
+    // 2. Tìm ID nhân viên hiện tại (is_current = TRUE)
+    const empCheck = await pool.query(
+      'SELECT id FROM employees WHERE employee_code = $1 AND is_current = TRUE',
+      [employee_code]
+    );
+    
+    if (empCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
+    }
+    const employeeId = empCheck.rows[0].id;
+
+    // 3. Tính toán tiền phạt tự động bằng hàm có sẵn của bạn
+    const settings = await getSettings();
+    const computed = calculateLateness(check_in_time, settings);
+
+    // 4. Lưu vào Database (Sử dụng UPSERT để tránh lỗi nếu check-in 2 lần 1 ngày)
+    await pool.query(
+      `INSERT INTO attendance_logs
+         (employee_id, employee_code, work_date, check_in_time,
+          minutes_late, fine_blocks, total_fine, is_exempt, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE, NOW())
+       ON CONFLICT (employee_code, work_date)
+       DO UPDATE SET
+         -- Nếu đã check-in rồi mà quét lại, hệ thống sẽ giữ lại giờ đến sớm nhất
+         check_in_time = LEAST(attendance_logs.check_in_time, EXCLUDED.check_in_time),
+         
+         -- Cập nhật lại số tiền phạt dựa trên giờ sớm nhất đó
+         minutes_late = CASE WHEN EXCLUDED.check_in_time < attendance_logs.check_in_time THEN EXCLUDED.minutes_late ELSE attendance_logs.minutes_late END,
+         fine_blocks = CASE WHEN EXCLUDED.check_in_time < attendance_logs.check_in_time THEN EXCLUDED.fine_blocks ELSE attendance_logs.fine_blocks END,
+         total_fine = CASE WHEN EXCLUDED.check_in_time < attendance_logs.check_in_time THEN EXCLUDED.total_fine ELSE attendance_logs.total_fine END,
+         
+         updated_at = NOW()`
+      ,
+      [
+        employeeId,
+        employee_code,
+        work_date,
+        check_in_time,
+        computed.minutes_late,
+        computed.fine_blocks,
+        computed.total_fine
+      ]
+    );
+
+    // 5. Tự động đồng bộ lên Google Sheets (giống hệt API POST /log của bạn)
+    triggerAutoSync(work_date.slice(0, 7));
+
+    res.json({ success: true, message: 'Check-in thành công và đã lưu DB!' });
+  } catch (err) {
+    console.error("Lỗi khi check-in:", err);
+    res.status(500).json({ success: false, message: 'Lỗi server khi lưu điểm danh' });
+  }
+});
+
+/**
+ * POST /api/attendance/excuse
+ * Endpoint cho AI Agent xử lý đơn xin đi muộn/vắng mặt từ Mobile App
+ */
+router.post('/excuse', async (req, res, next) => {
+  try {
+    const { employee_code, reason } = req.body;
+    
+    if (!employee_code || !reason) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin lý do hoặc mã nhân viên.' });
+    }
+
+    const now = new Date();
+    const work_date = now.toLocaleDateString('en-CA');
+
+    // 1. Tìm ID nhân viên
+    const empCheck = await pool.query(
+      'SELECT id FROM employees WHERE employee_code = $1 AND is_current = TRUE',
+      [employee_code]
+    );
+    
+    if (empCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
+    }
+
+    // 2. Logic "AI Agent" phân tích từ khóa giả lập
+    const lowerReason = reason.toLowerCase();
+    const isValidExcuse = lowerReason.includes('ngập') || 
+                          lowerReason.includes('hỏng xe') || 
+                          lowerReason.includes('tai nạn') ||
+                          lowerReason.includes('ốm');
+
+    if (isValidExcuse) {
+      // 3. Hợp lệ -> Lưu vào DB với cờ is_exempt = TRUE
+      await pool.query(
+        `INSERT INTO attendance_logs 
+           (employee_id, employee_code, work_date, is_exempt, note, updated_at)
+         VALUES ($1, $2, $3, TRUE, $4, NOW())
+         ON CONFLICT (employee_code, work_date)
+         DO UPDATE SET 
+           is_exempt = TRUE, 
+           note = EXCLUDED.note, 
+           updated_at = NOW()`,
+        [empCheck.rows[0].id, employee_code, work_date, reason]
+      );
+
+      res.json({ 
+        success: true, 
+        message: 'Đã phân tích: Lý do hợp lệ. Hệ thống đã tự động cấp quyền Miễn trừ (Exempt) cho ngày hôm nay!' 
+      });
+    } else {
+      // 3. Không khớp từ khóa -> Chỉ ghi nhận, không miễn trừ
+      res.json({ 
+        success: true, 
+        message: 'Đã ghi nhận sự cố. Tuy nhiên lý do chưa đủ điều kiện tự động duyệt, Admin sẽ kiểm tra lại sau.' 
+      });
+    }
+  } catch (err) {
+    console.error("Lỗi khi xử lý Excuse:", err);
+    res.status(500).json({ success: false, message: 'Lỗi server khi xử lý sự cố.' });
+  }
+});
+
+module.exports = router;
+
 module.exports = router;

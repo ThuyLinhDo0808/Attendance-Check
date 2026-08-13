@@ -7,16 +7,19 @@ import EmployeeFineSheet from './components/EmployeeFineSheet.jsx';
 import Settings from './components/Settings.jsx';
 import WeeklyReport from './components/WeeklyReport.jsx';
 import EmployeeManager from './components/EmployeeManager.jsx';
+import AdminQRCode from './components/AdminQRCode.jsx';
 import { 
   ClockIcon, 
   PresentationChartBarIcon, 
   CalendarDaysIcon, 
   TableCellsIcon, 
   UserGroupIcon, 
-  Cog6ToothIcon 
+  Cog6ToothIcon ,
+  QrCodeIcon
 } from '@heroicons/react/24/outline';
 
 const TABS = [
+  { id: 'qrcode', label: 'QR Check-in', icon: QrCodeIcon },
   { id: 'logger', label: 'Attendance Logger', icon: ClockIcon },
   { id: 'analytics', label: 'Company Analytics', icon: PresentationChartBarIcon },
   { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, // Đã đồng bộ
@@ -128,6 +131,8 @@ export default function App() {
               Could not load employees: {employeesError}. Confirm the backend API is running.
             </div>
           )}
+
+          {activeTab === 'qrcode' && <AdminQRCode />}
 
           {activeTab === 'logger' && (
             <AttendanceLogger employees={employees} onLogged={() => showToast('Attendance logged.')} />
