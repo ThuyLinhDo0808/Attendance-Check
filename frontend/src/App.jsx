@@ -27,8 +27,8 @@ const TABS = [
   { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, // Đã đồng bộ
   { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
   { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, // Đã đồng bộ
-  { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
   { id: 'excuses', label: 'Pending Excuses', icon: BellAlertIcon },
+  { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
 ];
 
 export default function App() {
@@ -171,14 +171,6 @@ export default function App() {
               }} 
             />
           )}
-          {activeTab === 'settings' && (
-            <Settings
-              onSaved={() => {
-                showToast('Settings updated.');
-                loadSidebarSettings();
-              }}
-            />
-          )}
 
           {activeTab === 'excuses' && (
             <PendingExcuses onResolved={() => {
@@ -187,6 +179,14 @@ export default function App() {
             }} />
           )}
 
+          {activeTab === 'settings' && (
+            <Settings
+              onSaved={() => {
+                showToast('Settings updated.');
+                loadSidebarSettings();
+              }}
+            />
+          )}
         </div>
       </main>
 

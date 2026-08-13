@@ -1,14 +1,12 @@
 # Attendance & Fine Management System
 
-An internal, single-admin web app for logging employee attendance, tracking
-lateness, and calculating cash penalties — with late workers surfaced
-front-and-center on every screen, and a fully audit-safe history of both
-organizational and policy changes.
+An internal, single-admin web app and mobile companion for logging employee attendance, tracking lateness, calculating cash penalties, and managing excuse requests with AI assistance.
 
 ```
 attendance-app/
 ├── backend/     Node.js + Express API, PostgreSQL access
 └── frontend/    React + Vite + Tailwind admin dashboard
+└── mobile/      Expo React Native mobile app for QR check-in & excuses
 ```
 
 ## Audit-safe history (SCD2)
@@ -49,10 +47,10 @@ Two audit endpoints make this queryable directly:
 - `GET /api/settings/at?date=2023-05-01` — reconstructs the exact settings
   snapshot in effect on a given date.
 
-## Business rules
+## Business Rules & Excuse Workflow
 
-- **Workday start:** default 08:30 AM — the current version of the
-  `workday_start_time` setting.
+### 1. Business Rules
+- **Workday start:** default 08:30 AM — the current version of the `workday_start_time` setting.
 - **Lateness:** any check-in strictly after the start time.
 - **Fine blocks:** `minutes_late / block_minutes` — **rounded UP** to the nearest whole block (`Math.ceil`). Any partial block counts as a full block.
   - 1 to 15 min late (15-min block) → **1** block
@@ -64,6 +62,15 @@ Two audit endpoints make this queryable directly:
 - **Exempt days:** the admin can mark a day `is_exempt` (approved leave,
   business trip) — check-in becomes optional and no fine is charged,
   regardless of what time was recorded.
+
+### 2. AI Excuse & Review Workflow (Mobile + Web)
+- **Mobile Submissions**: Employees can submit late arrival or absence excuses directly from their mobile companion app.
+- **AI-Powered Analysis**: The backend automatically parses reasons against keyword filters (e.g., heavy rain, broken vehicle, illness) to generate suggestions (`ai_suggestion` like *Đề xuất Duyệt* or *Cần xem xét*) and stores requests in `excuse_requests` under a `PENDING` status.
+- **Web Admin "Pending Excuses" Tab**:
+  - Dedicated screen for admins to review all pending staff explanations.
+  - **Real-time Notification Badge**: The sidebar menu displays a live red badge indicating the exact count of pending requests requiring attention.
+  - **Approve (Waive Fine)**: Approving an excuse automatically marks the day as exempt (`is_exempt = TRUE`) and clears cash penalties.
+  - **Reject**: Declining an excuse triggers backend calculation against the morning's actual check-in time and officially enforces the fine onto the employee's ledger.
 
 All computed values are recomputed **server-side** at log time from the
 settings *current at that moment*, then stored — never recalculated from
@@ -162,10 +169,28 @@ You never need to touch the database or restart the app to correct a log:
 - **Employee Fine Sheet tab** — any employee with `times_late > 0` gets a
   highlighted row; clicking opens their full check-in history.
 
+## Mobile App Companion (Expo React Native)
+
+The project includes a companion mobile application designed for employees to interact with the system on the go. 
+
+### Core Mobile Features:
+- **QR Code Check-in**: 
+  - Employees can open the mobile app and navigate to the **QR Check-in** tab to scan the office QR code.
+  - **Anti-Spam Safeguards (`useRef`)**: The scanner utilizes a synchronization reference hook (`useRef`) to instantly lock the camera matrix upon the first successful read. This completely eliminates multi-scan loops or accidental duplicate check-in triggers before the app transitions screens.
+- **AI Excuse & Late Reporting**:
+  - If an employee checks in late or faces an emergency (e.g., severe weather, traffic accidents, vehicle breakdown), they can use the **Excuse Report** tab to type and submit a explanation.
+  - The backend AI parses the text description to assign an automated recommendation status (`ai_suggestion`), routing it straight to the web admin's pending queue for final approval or rejection.
+
 ## Prerequisites
 
 - Node.js 18+
 - PostgreSQL 13+ running locally (or a connection string to a hosted instance)
+- **Expo Go** app installed on your smartphone (iOS/Android)
+
+<br>
+<br>
+
+# How to run
 
 ## 1. Database setup
 
@@ -219,6 +244,30 @@ Open `http://localhost:5173`. Vite's dev server proxies `/api/*` to
 cd frontend
 npm run build      # outputs static files to frontend/dist
 ```
+## 5. Running Mobile App (Expo)
+
+- Open a new terminal tab and navigate to your mobile app dirrectory.
+
+- Install mobile dependencies:
+
+```bash
+npm install
+```
+
+- Configure Local IP:
+  + Set `BACKEND_URL` in your mobile app files to your computer's local network IP address:
+
+  ``` bash
+  const BACKEND_URL = 'http://YOUR_LOCAL_IP:4000/api';
+  ```
+
+- Start the mobile app:
+
+``` bash
+  npx expo start
+```
+
+- Scan the QR code using the camerea (IOS)/ Expo Go app (Android) on your physical device.
 
 ## API reference
 
@@ -231,6 +280,10 @@ npm run build      # outputs static files to frontend/dist
 | POST   | `/api/attendance/log` | Log/update one day's attendance (upsert on employee_code + date). Body: `employee_code`, `work_date`, `check_in_time?`, `check_out_time?`, `note?`, `is_exempt?` |
 | GET    | `/api/attendance` | List logs (`?employee_code=`, `?month=YYYY-MM`, `?date=YYYY-MM-DD`, `?late_only=true`) |
 | DELETE | `/api/attendance/:id` | Remove a log entry |
+| POST   | `/api/attendance/checkin` | Mobile QR check-in endpoint JS
+| POST   | `/api/attendance/excuse` | Submit mobile excuse report  
+|GET     | `/api/attendance/pending-excuses` | Fetch pending excuse requests for admin
+|POST    | `/api/attendance/resolve-excuse` | Approve or reject an excuse request
 | GET    | `/api/analytics/monthly?month=YYYY-MM` | Company-wide totals + late workers that month |
 | GET    | `/api/analytics/trends?months=6` | Zero-filled monthly series for the trend charts |
 | GET    | `/api/analytics/employee/:code` | One employee's totals + full check-in history |

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,6 +9,8 @@ export default function CheckInScreen() {
   const [scanned, setScanned] = useState(false);
   const [empCode, setEmpCode] = useState('');
   const router = useRouter();
+
+  const isScanningRef = useRef(false);
 
   const BACKEND_URL = 'http://192.168.103.174:4000/api';
 
@@ -25,13 +27,22 @@ export default function CheckInScreen() {
   }, []);
 
   const handleBarCodeScanned = ({ data }: { data: string }) => {
-    setScanned(true); // Khóa camera lại ngay lập tức
+    if (isScanningRef.current) return;
+    isScanningRef.current = true;
+    setScanned(true); 
     
     Alert.alert(
       "Xác nhận Check-in", 
       `Mã QR đã quét thành công.\nNhân viên: ${empCode}`,
       [
-        { text: "Hủy", onPress: () => setScanned(false), style: "cancel" },
+        { 
+          text: "Hủy", 
+          onPress: () => {
+            isScanningRef.current = false; 
+            setScanned(false);
+          }, 
+          style: "cancel" 
+        },
         { 
           text: "Gửi điểm danh", 
           onPress: async () => {
@@ -44,13 +55,13 @@ export default function CheckInScreen() {
 
               const result = await response.json();
 
-              // 🚀 Dùng setTimeout để đợi bảng Alert 1 đóng xong hoàn toàn
               setTimeout(() => {
                 if (result.success) {
                   Alert.alert("Tuyệt vời!", "Điểm danh thành công!", [
                     { 
                       text: "Xem Hồ Sơ", 
                       onPress: () => {
+                        isScanningRef.current = false;
                         setScanned(false);
                         router.push('/profile');
                       }
@@ -58,16 +69,27 @@ export default function CheckInScreen() {
                   ]);
                 } else {
                   Alert.alert("Lỗi", result.message || "Điểm danh thất bại.", [
-                    { text: "Đóng", onPress: () => setScanned(false) }
+                    { 
+                      text: "Đóng", 
+                      onPress: () => {
+                        isScanningRef.current = false;
+                        setScanned(false);
+                      } 
+                    }
                   ]);
                 }
-              }, 500); // Trễ 500ms
+              }, 500);
 
             } catch (error) {
-              // 🚀 Bọc setTimeout cho cả phần báo lỗi kết nối
               setTimeout(() => {
-                Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ! Vui lòng kiểm tra lại mạng hoặc IP.", [
-                  { text: "Đóng", onPress: () => setScanned(false) }
+                Alert.alert("Lỗi kết nối", "Không thể kết nối đến máy chủ!", [
+                  { 
+                    text: "Đóng", 
+                    onPress: () => {
+                      isScanningRef.current = false; 
+                      setScanned(false);
+                    } 
+                  }
                 ]);
               }, 500);
             } 

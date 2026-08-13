@@ -41,7 +41,7 @@ export default function PendingExcuses({ onResolved }) {
       <header className="mb-6">
         <h2 className="text-2xl font-bold text-slate-900">Pending Excuses</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Danh sách giải trình đi muộn/vắng mặt đang chờ xét duyệt.
+          List of late/absence explanations pending approval.
         </p>
       </header>
 
@@ -49,18 +49,18 @@ export default function PendingExcuses({ onResolved }) {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {loading ? (
-          <p className="p-6 text-slate-500 text-sm">Đang tải dữ liệu...</p>
+          <p className="p-6 text-slate-500 text-sm">Data is loading...</p>
         ) : requests.length === 0 ? (
-          <p className="p-6 text-slate-500 text-sm italic">Không có đơn xin phép nào đang chờ duyệt.</p>
+          <p className="p-6 text-slate-500 text-sm italic">No pending excuse requests.</p>
         ) : (
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
               <tr>
-                <th className="px-6 py-3">Ngày</th>
-                <th className="px-6 py-3">Nhân viên</th>
-                <th className="px-6 py-3">Lý do</th>
-                <th className="px-6 py-3">AI Đề xuất</th>
-                <th className="px-6 py-3 text-right">Thao tác</th>
+                <th className="px-6 py-3">Date</th>
+                <th className="px-6 py-3">Employee</th>
+                <th className="px-6 py-3">Reason</th>
+                <th className="px-6 py-3">Note</th>
+                <th className="px-6 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -90,13 +90,13 @@ export default function PendingExcuses({ onResolved }) {
                       onClick={() => handleResolve(req.id, 'APPROVED')}
                       className="text-xs font-bold bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700 transition"
                     >
-                      Duyệt (Miễn phạt)
+                      Approve (Waive Fine)
                     </button>
                     <button 
                       onClick={() => handleResolve(req.id, 'REJECTED')}
                       className="text-xs font-bold bg-slate-200 text-slate-700 px-3 py-1.5 rounded hover:bg-slate-300 transition"
                     >
-                      Từ chối
+                      Reject
                     </button>
                   </td>
                 </tr>
