@@ -112,7 +112,7 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
         {/* Header Modal */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <h3 className="text-lg font-bold text-slate-900">
@@ -141,23 +141,22 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                   <tr>
-                    <th className="px-6 py-3">Ngày</th>
-                    <th className="px-6 py-3">Giờ vào</th>
-                    <th className="px-6 py-3">Giờ ra</th>
-                    <th className="px-6 py-3 text-center">Miễn trừ</th>
-                    <th className="px-6 py-3 text-right">Phút muộn</th>
-                    <th className="px-6 py-3 text-right">Tiền phạt</th>
-                    <th className="px-6 py-3 text-right">Thao tác</th>
+                    <th className="px-6 py-3">Date</th>
+                    <th className="px-6 py-3">Check-in Time</th>
+                    <th className="px-6 py-3">Check-out Time</th>
+                    <th className="px-6 py-3">Note</th>
+                    <th className="px-6 py-3 text-center">Exempt</th>
+                    <th className="px-6 py-3 text-right">Minutes Late</th>
+                    <th className="px-6 py-3 text-right">Fine</th>
+                    <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {/* DÙNG VÒNG LẶP .MAP */}
                   {data.history.map((h) => {
                     const late = h.minutes_late > 0;
                     const busy = rowBusy === h.id;
-                    const isEditing = editingId === h.id; // Kiểm tra xem dòng này có đang được Edit không
+                    const isEditing = editingId === h.id;
 
-                    // GIAO DIỆN KHI BẤM NÚT EDIT (HIỂN THỊ Ô NHẬP LIỆU)
                     if (isEditing) {
                       return (
                         <tr key={h.id} className="bg-blue-50/30 border-y border-blue-100">
@@ -168,8 +167,7 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                               className="border border-slate-300 rounded px-2 py-1 text-sm w-full bg-white disabled:bg-slate-100" 
                               value={draft.check_in_time} 
                               onChange={(e) => setDraft({ ...draft, check_in_time: e.target.value })} 
-                              disabled={draft.is_exempt || busy} 
-                            />
+                              disabled={draft.is_exempt || busy} />
                           </td>
                           <td className="px-6 py-3">
                             <input 
@@ -177,8 +175,17 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                               className="border border-slate-300 rounded px-2 py-1 text-sm w-full bg-white" 
                               value={draft.check_out_time} 
                               onChange={(e) => setDraft({ ...draft, check_out_time: e.target.value })} 
-                              disabled={busy} 
-                            />
+                              disabled={busy} />
+                          </td>
+                          <td colSpan="2" className="px-6 py-3">
+                            <input 
+                              type="text" 
+                              className="border border-slate-300 rounded px-2 py-1 text-sm w-full bg-white" 
+                              placeholder="Note (reason...)" 
+                              value={draft.note} 
+                              onChange={(e) => setDraft({ ...draft, note: e.target.value })} 
+                              disabled={busy} />
+                            {rowError && <p className="text-red-500 text-xs mt-1">{rowError}</p>}
                           </td>
                           <td className="px-6 py-3 text-center">
                             <input 
@@ -186,21 +193,9 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" 
                               checked={draft.is_exempt} 
                               onChange={(e) => setDraft({ ...draft, is_exempt: e.target.checked })} 
-                              disabled={busy} 
-                            />
+                              disabled={busy} />
                           </td>
-                          <td colSpan="2" className="px-6 py-3">
-                            <input 
-                              type="text" 
-                              className="border border-slate-300 rounded px-2 py-1 text-sm w-full bg-white" 
-                              placeholder="Ghi chú (lý do...)" 
-                              value={draft.note} 
-                              onChange={(e) => setDraft({ ...draft, note: e.target.value })} 
-                              disabled={busy} 
-                            />
-                            {rowError && <p className="text-red-500 text-xs mt-1">{rowError}</p>}
-                          </td>
-                          <td className="px-6 py-3 text-right">
+                          <td colSpan="2" className="px-6 py-3 text-right">
                             <button onClick={() => saveEdit(h)} disabled={busy} className="text-xs font-bold text-green-600 hover:underline mr-3">Lưu</button>
                             <button onClick={cancelEdit} disabled={busy} className="text-xs text-slate-500 hover:underline">Hủy</button>
                           </td>
@@ -208,13 +203,13 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                       );
                     }
 
-                    // GIAO DIỆN ĐỌC BÌNH THƯỜNG (READ-ONLY)
                     return (
                       <React.Fragment key={h.id}>
                         <tr className={`group ${late ? 'bg-fine-soft/40' : 'hover:bg-slate-50'}`}>
                           <td className="px-6 py-3 font-mono-num">{formatDate(h.work_date)}</td>
                           <td className="px-6 py-3 font-mono-num">{h.is_exempt ? '—' : formatTime(h.check_in_time)}</td>
                           <td className="px-6 py-3 font-mono-num">{formatTime(h.check_out_time)}</td>
+                          <td className="px-6 py-3 text-slate-600 text-xs italic">{h.note || '—'}</td>
                           <td className="px-6 py-3 text-center">
                             {h.is_exempt ? (
                               <span className="inline-flex rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">Yes</span>
@@ -228,7 +223,7 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                           <td className="px-6 py-3 text-right font-mono-num">
                             {late ? formatVNDExact(h.total_fine) : '—'}
                           </td>
-                          <td className="px-6 py-3 text-right">
+                          <td className="px-6 py-3 text-right whitespace-nowrap">
                             <button onClick={() => startEdit(h)} disabled={busy} className="text-xs text-blue-600 hover:underline mr-3 disabled:opacity-50">Edit</button>
                             <button onClick={() => deleteLog(h)} disabled={busy} className="text-xs text-red-600 hover:underline mr-3 disabled:opacity-50">Delete</button>
                             <button onClick={() => toggleAudit(h.id)} disabled={busy} className="text-xs font-bold text-indigo-600 hover:underline disabled:opacity-50">History</button>
@@ -238,10 +233,12 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                         {/* Dropdown Lịch sử chỉnh sửa */}
                         {expandedAuditId === h.id && (
                           <tr className="bg-slate-50/80 border-b border-slate-200">
-                            <td colSpan="7" className="p-4">
+                            <td colSpan="8" className="p-4">
                               <div className="pl-6 border-l-2 border-indigo-200 ml-4 space-y-4">
-                                {auditData.length === 0 ? (
-                                  <p className="text-xs text-slate-400 font-medium">Loading audit data...</p>
+                                {auditLoading ? (
+                                  <p className="text-xs text-slate-400 font-medium">Loading history data...</p>
+                                ) : auditData.length === 0 ? (
+                                  <p className="text-xs text-slate-500 font-medium">No history data available on this day.</p>
                                 ) : (
                                   auditData.map((audit) => (
                                     <div key={audit.audit_id} className="relative">
@@ -277,7 +274,6 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   );
 }
 
-// Component phụ trợ in thẻ thống kê
 function Stat({ label, value, emphasize }) {
   return (
     <div>

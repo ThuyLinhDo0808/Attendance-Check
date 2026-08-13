@@ -9,18 +9,8 @@ export default function ExcuseScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmitToAI = async () => {
-    if (!reason.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập lý do vắng mặt hoặc đi muộn.');
-      return;
-    }
-
     setLoading(true);
     Keyboard.dismiss(); // Đóng bàn phím khi nhấn nút gửi
-
-    if (!reason.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập lý do vắng mặt hoặc đi muộn.');
-      return;
-    }
     
     try {
       // 1. Lấy mã nhân viên đang đăng nhập từ bộ nhớ
@@ -44,7 +34,7 @@ export default function ExcuseScreen() {
       // 3. Xử lý kết quả trả về với độ trễ để tránh lỗi Alert chồng nhau
       setTimeout(() => {
         if (result.success) {
-          Alert.alert('AI Agent Phản hồi', result.message);
+          Alert.alert('Báo cáo thành công', result.message);
           setReason(''); // Xóa nội dung ô chữ sau khi gửi thành công
         } else {
           Alert.alert('Lỗi', result.message || 'Xử lý thất bại.');
@@ -53,7 +43,7 @@ export default function ExcuseScreen() {
 
     } catch (error) {
       setTimeout(() => {
-        Alert.alert('Lỗi kết nối', 'Không thể kết nối đến máy chủ AI.');
+        Alert.alert('Lỗi kết nối', 'Không thể kết nối đến máy chủ.');
       }, 500);
     } finally {
       setLoading(false);
@@ -62,8 +52,8 @@ export default function ExcuseScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headerTitle}>Trợ lý AI Báo cáo Sự cố</Text>
-      <Text style={styles.subTitle}>Nhập lý do của bạn, AI Agent sẽ tự động đối chiếu nội quy công ty để xét duyệt.</Text>
+      <Text style={styles.headerTitle}>Báo cáo Lý do Đi muộn</Text>
+      <Text style={styles.subTitle}>Nhập lý do đi muộn của bạn.</Text>
 
       <TextInput
         style={styles.input}
@@ -83,7 +73,7 @@ export default function ExcuseScreen() {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.submitButtonText}>Gửi cho AI Agent xử lý</Text>
+          <Text style={styles.submitButtonText}>Giải trình lý do</Text>
         )}
       </TouchableOpacity>
     </View>

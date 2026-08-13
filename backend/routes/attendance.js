@@ -259,6 +259,7 @@ router.post('/checkin', async (req, res, next) => {
   }
 });
 
+
 /**
  * POST /api/attendance/excuse
  * Endpoint cho AI Agent xử lý đơn xin đi muộn/vắng mặt từ Mobile App
@@ -267,9 +268,11 @@ router.post('/excuse', async (req, res, next) => {
   try {
     const { employee_code, reason } = req.body;
     
-    if (!employee_code || !reason) {
-      return res.status(400).json({ success: false, message: 'Thiếu thông tin lý do hoặc mã nhân viên.' });
+    if (!employee_code) {
+      return res.status(400).json({ success: false, message: 'Thiếu mã nhân viên.' });
     }
+
+    const safeReason = reason || ''; 
 
     const now = new Date();
     const work_date = now.toLocaleDateString('en-CA');
@@ -283,16 +286,25 @@ router.post('/excuse', async (req, res, next) => {
     if (empCheck.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
     }
+    const employeeId = empCheck.rows[0].id;
 
-    // 2. Logic "AI Agent" phân tích từ khóa giả lập
-    const lowerReason = reason.toLowerCase();
+    // 2. KIỂM TRA XEM HÔM NAY ĐÃ CHECK-IN CHƯA
+    const logCheck = await pool.query(
+      'SELECT id FROM attendance_logs WHERE employee_code = $1 AND work_date = $2',
+      [employee_code, work_date]
+    );
+    const hasCheckedIn = logCheck.rows.length > 0;
+
+    // 3. Logic "AI Agent" phân tích từ khóa giả lập
+    const lowerReason = safeReason.toLowerCase();
     const isValidExcuse = lowerReason.includes('ngập') || 
                           lowerReason.includes('hỏng xe') || 
                           lowerReason.includes('tai nạn') ||
                           lowerReason.includes('ốm');
 
     if (isValidExcuse) {
-      // 3. Hợp lệ -> Lưu vào DB với cờ is_exempt = TRUE
+      // 🟢 TRƯỜNG HỢP 1: AI DUYỆT (is_exempt = TRUE)
+      // Khi được Miễn trừ, Database cho phép check_in_time bị NULL, nên UPSERT thoải mái.
       await pool.query(
         `INSERT INTO attendance_logs 
            (employee_id, employee_code, work_date, is_exempt, note, updated_at)
@@ -302,19 +314,36 @@ router.post('/excuse', async (req, res, next) => {
            is_exempt = TRUE, 
            note = EXCLUDED.note, 
            updated_at = NOW()`,
-        [empCheck.rows[0].id, employee_code, work_date, reason]
+        [employeeId, employee_code, work_date, safeReason]
       );
 
       res.json({ 
         success: true, 
         message: 'Đã phân tích: Lý do hợp lệ. Hệ thống đã tự động cấp quyền Miễn trừ (Exempt) cho ngày hôm nay!' 
       });
+
     } else {
-      // 3. Không khớp từ khóa -> Chỉ ghi nhận, không miễn trừ
-      res.json({ 
-        success: true, 
-        message: 'Đã ghi nhận sự cố. Tuy nhiên lý do chưa đủ điều kiện tự động duyệt, Admin sẽ kiểm tra lại sau.' 
-      });
+      // 🔴 TRƯỜNG HỢP 2: AI KHÔNG DUYỆT (is_exempt = FALSE)
+      if (hasCheckedIn) {
+        // Nếu ĐÃ Check-in: Chỉ cần cập nhật thêm (UPDATE) cột ghi chú vào log hiện tại.
+        await pool.query(
+          `UPDATE attendance_logs 
+           SET note = $1, updated_at = NOW()
+           WHERE employee_code = $2 AND work_date = $3`,
+          [safeReason, employee_code, work_date]
+        );
+
+        res.json({ 
+          success: true, 
+          message: 'Đã ghi nhận giải trình. Admin sẽ xem xét đối chiếu cùng với giờ Check-in thực tế của bạn.' 
+        });
+      } else {
+        // Nếu CHƯA Check-in: Chặn lại, vì không thể lưu log đi muộn mà không có giờ đến.
+        res.json({ 
+          success: false, 
+          message: 'Lý do chưa đủ điều kiện duyệt tự động. Vui lòng Check-in tại văn phòng trước khi gửi giải trình!' 
+        });
+      }
     }
   } catch (err) {
     console.error("Lỗi khi xử lý Excuse:", err);
