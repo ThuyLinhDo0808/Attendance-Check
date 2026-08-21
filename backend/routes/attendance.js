@@ -392,46 +392,41 @@ router.post('/resolve-excuse', async (req, res, next) => {
  */
 router.post('/upload-evidence', upload.array('media', 5), async (req, res, next) => {
   try {
-    const { employee_code, work_date } = req.body; 
-    const files = req.files; // Lấy danh sách file
+    // Nhận mảng log_ids (chứa ID chính xác của từng lần đi muộn) thay vì employee_codes
+    const { log_ids } = req.body; 
+    const files = req.files;
 
-    if (!files || files.length === 0 || !employee_code || !work_date) {
-      return res.status(400).json({ error: 'Thiếu file, mã nhân viên hoặc ngày làm.' });
+    if (!files || files.length === 0 || !log_ids) {
+      return res.status(400).json({ error: 'Thiếu file hoặc chưa chọn bản ghi.' });
     }
 
-    const rootFolderId = process.env.DRIVE_FOLDER_ID;
-    
-    // 1. Lấy ID thư mục của riêng nhân viên này
-    const employeeFolderId = await getOrCreateEmployeeFolder(employee_code, rootFolderId);
+    const parsedIds = JSON.parse(log_ids);
+    if (parsedIds.length === 0) return res.status(400).json({ error: 'Chưa chọn bản ghi nào.' });
 
-    // 2. Duyệt qua từng file và tải lên Drive
+    const rootFolderId = process.env.DRIVE_FOLDER_ID;
     const uploadedFileIds = [];
+    
+    // Tải video lên Drive đúng 1 lần duy nhất
     for (const file of files) {
-        const fileId = await uploadFileToDrive(file.path, file.originalname, employeeFolderId);
+        const fileId = await uploadFileToDrive(file.path, file.originalname, rootFolderId);
         uploadedFileIds.push(fileId);
-        
-        // Xóa file tạm trên server ngay sau khi upload xong 1 file
         fs.unlinkSync(file.path);
     }
 
-    // 3. Cập nhật mảng ID dạng JSON vào DB
-    // Toán tử || nối mảng JSONB trong Postgres (để nếu đã có file cũ thì nối thêm vào)
-    await pool.query(
-      `UPDATE attendance_logs 
-       SET evidence_files = (COALESCE(evidence_files, '[]'::jsonb) || $1::jsonb), 
-           updated_at = NOW()
-       WHERE employee_code = $2 AND work_date = $3`,
-      [JSON.stringify(uploadedFileIds), employee_code, work_date]
-    );
-
-    res.json({ success: true, message: 'Đã tải lên bằng chứng thành công!', fileIds: uploadedFileIds });
-  } catch (err) {
-    // Xóa rác nếu có lỗi giữa chừng
-    if (req.files) {
-      req.files.forEach(file => {
-        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      });
+    // Lặp qua từng ID sự kiện đi muộn để gán chung ID video vào
+    for (const logId of parsedIds) {
+        await pool.query(
+          `UPDATE attendance_logs 
+           SET evidence_files = (COALESCE(evidence_files, '[]'::jsonb) || $1::jsonb), 
+               updated_at = NOW()
+           WHERE id = $2`,
+          [JSON.stringify(uploadedFileIds), logId]
+        );
     }
+
+    res.json({ success: true, message: 'Đã tải lên và gắn Tag thành công!', fileIds: uploadedFileIds });
+  } catch (err) {
+    if (req.files) req.files.forEach(f => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); });
     next(err);
   }
 });

@@ -2,41 +2,50 @@ import React, { useState } from 'react';
 import { api } from '../api';
 
 const EvidenceUpload = ({ employeeCode, workDate, onUploadSuccess }) => {
-  const [videoFile, setVideoFile] = useState(null);
+  const [mediaFiles, setMediaFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 50 * 1024 * 1024) {
-        setMessage({ type: 'error', text: 'Video quá lớn. Vui lòng quay video ngắn hơn (dưới 50MB).' });
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      if (files.length > 5) {
+        setMessage({ type: 'error', text: 'Chỉ được chọn tối đa 5 file cùng lúc!' });
         return;
       }
-      setVideoFile(file);
-      setMessage({ type: '', text: '' });
+      
+      // Kiểm tra tổng dung lượng (ví dụ: giới hạn 200MB cho an toàn trên mobile)
+      const totalSize = files.reduce((acc, file) => acc + file.size, 0);
+      if (totalSize > 200 * 1024 * 1024) {
+        setMessage({ type: 'error', text: 'Tổng dung lượng quá lớn. Vui lòng chọn dưới 200MB.' });
+        return;
+      }
+
+      setMediaFiles(files);
+      setMessage({ type: 'info', text: `Đã chọn ${files.length} tệp. Sẵn sàng tải lên.` });
     }
   };
 
   const handleUpload = async () => {
-    if (!videoFile) {
-      setMessage({ type: 'error', text: 'Vui lòng quay hoặc chọn video!' });
+    if (mediaFiles.length === 0) {
+      setMessage({ type: 'error', text: 'Vui lòng chọn ít nhất 1 hình ảnh hoặc video!' });
       return;
     }
 
     setIsUploading(true);
-    setMessage({ type: 'info', text: 'Đang tải video lên, vui lòng đợi...' });
+    setMessage({ type: 'info', text: 'Đang tải dữ liệu lên hệ thống, vui lòng đợi...' });
 
     const formData = new FormData();
-    formData.append('video', videoFile);
+    // Vòng lặp nối tất cả các file vào cùng một biến 'media' để khớp với Backend
+    mediaFiles.forEach(file => formData.append('media', file));
     formData.append('employee_code', employeeCode);
     formData.append('work_date', workDate);
 
     try {
       const data = await api.uploadEvidence(formData);
-      setMessage({ type: 'success', text: 'Tải video lên thành công!' });
-      setVideoFile(null);
-      if (onUploadSuccess) onUploadSuccess(data.fileId);
+      setMessage({ type: 'success', text: 'Đã tải lên bằng chứng thành công!' });
+      setMediaFiles([]); // Xóa rỗng input sau khi up xong
+      if (onUploadSuccess) onUploadSuccess(data.fileIds);
     } catch (error) {
       console.error('Lỗi upload:', error);
       setMessage({ type: 'error', text: error.message || 'Không thể kết nối đến máy chủ.' });
@@ -52,8 +61,8 @@ const EvidenceUpload = ({ employeeCode, workDate, onUploadSuccess }) => {
       <div className="mb-2">
         <input 
           type="file" 
-          accept="video/*" 
-          capture="environment"
+          accept="video/*, image/*" 
+          multiple // Đã thêm thuộc tính cho phép chọn nhiều file
           onChange={handleFileChange}
           className="block w-full text-xs text-slate-500
             file:mr-3 file:py-1 file:px-3
@@ -75,13 +84,13 @@ const EvidenceUpload = ({ employeeCode, workDate, onUploadSuccess }) => {
 
       <button
         onClick={handleUpload}
-        disabled={!videoFile || isUploading}
+        disabled={mediaFiles.length === 0 || isUploading}
         className={`w-full py-1.5 px-3 rounded text-xs font-medium text-white transition-colors
-          ${(!videoFile || isUploading) 
+          ${(mediaFiles.length === 0 || isUploading) 
             ? 'bg-slate-300 cursor-not-allowed' 
-            : 'bg-accent hover:bg-accent-dark'}`}
+            : 'bg-blue-600 hover:bg-blue-700'}`}
       >
-        {isUploading ? 'Đang xử lý...' : 'Tải lên'}
+        {isUploading ? 'Đang xử lý...' : 'Tải lên tất cả'}
       </button>
     </div>
   );
