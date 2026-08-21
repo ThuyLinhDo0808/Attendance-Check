@@ -19,15 +19,18 @@ import {
   QrCodeIcon,
   BellAlertIcon
 } from '@heroicons/react/24/outline';
+import EvidenceManager from './components/EvidenceManager.jsx';
+import { VideoCameraIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
   { id: 'qrcode', label: 'QR Check-in', icon: QrCodeIcon },
   { id: 'logger', label: 'Attendance Logger', icon: ClockIcon },
   { id: 'analytics', label: 'Company Analytics', icon: PresentationChartBarIcon },
-  { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, // Đã đồng bộ
+  { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, 
   { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
-  { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, // Đã đồng bộ
+  { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, 
   { id: 'excuses', label: 'Pending Excuses', icon: BellAlertIcon },
+  { id: 'evidence', label: 'Evidence Manager', icon: VideoCameraIcon }, 
   { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
 ];
 
@@ -178,6 +181,8 @@ export default function App() {
               loadPendingCount(); // Cập nhật lại số đếm trên chuông
             }} />
           )}
+
+          {activeTab === 'evidence' && <EvidenceManager />}
 
           {activeTab === 'settings' && (
             <Settings

@@ -3,6 +3,15 @@ const pool = require('../db/pool');
 const { calculateLateness } = require('../utils/fineCalculator');
 const { getSettings } = require('../utils/settingsCache');
 const { triggerAutoSync } = require('../utils/googleSheetsSync');
+const multer = require('multer');
+const fs = require('fs');
+const { getOrCreateEmployeeFolder, uploadFileToDrive } = require('../utils/googleDriveService');
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: {
+    fileSize: 2000 * 1024 * 1024 // Cho phép upload file lên đến 2GB
+  }
+});
 
 const router = express.Router();
 
@@ -374,6 +383,56 @@ router.post('/resolve-excuse', async (req, res, next) => {
     res.status(500).json({ success: false, message: 'Lỗi server khi xử lý đơn.' });
   } finally {
     client.release();
+  }
+});
+
+/**
+ * POST /api/attendance/upload-evidence
+ * Nhận video từ client, đẩy lên Google Drive và lưu ID vào bảng attendance_logs
+ */
+router.post('/upload-evidence', upload.array('media', 5), async (req, res, next) => {
+  try {
+    const { employee_code, work_date } = req.body; 
+    const files = req.files; // Lấy danh sách file
+
+    if (!files || files.length === 0 || !employee_code || !work_date) {
+      return res.status(400).json({ error: 'Thiếu file, mã nhân viên hoặc ngày làm.' });
+    }
+
+    const rootFolderId = process.env.DRIVE_FOLDER_ID;
+    
+    // 1. Lấy ID thư mục của riêng nhân viên này
+    const employeeFolderId = await getOrCreateEmployeeFolder(employee_code, rootFolderId);
+
+    // 2. Duyệt qua từng file và tải lên Drive
+    const uploadedFileIds = [];
+    for (const file of files) {
+        const fileId = await uploadFileToDrive(file.path, file.originalname, employeeFolderId);
+        uploadedFileIds.push(fileId);
+        
+        // Xóa file tạm trên server ngay sau khi upload xong 1 file
+        fs.unlinkSync(file.path);
+    }
+
+    // 3. Cập nhật mảng ID dạng JSON vào DB
+    // Toán tử || nối mảng JSONB trong Postgres (để nếu đã có file cũ thì nối thêm vào)
+    await pool.query(
+      `UPDATE attendance_logs 
+       SET evidence_files = (COALESCE(evidence_files, '[]'::jsonb) || $1::jsonb), 
+           updated_at = NOW()
+       WHERE employee_code = $2 AND work_date = $3`,
+      [JSON.stringify(uploadedFileIds), employee_code, work_date]
+    );
+
+    res.json({ success: true, message: 'Đã tải lên bằng chứng thành công!', fileIds: uploadedFileIds });
+  } catch (err) {
+    // Xóa rác nếu có lỗi giữa chừng
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      });
+    }
+    next(err);
   }
 });
 

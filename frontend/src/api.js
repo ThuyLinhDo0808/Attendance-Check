@@ -99,4 +99,21 @@ export const api = {
 
   getPendingExcuses: () => request('/attendance/pending-excuses'),
   resolveExcuse: (payload) => request('/attendance/resolve-excuse', { method: 'POST', body: JSON.stringify(payload) }),
+
+  uploadEvidence: async (formData) => {
+    // Không dùng hàm request() chung, mà dùng thẳng fetch() để trình duyệt tự lo Header cho FormData
+    const res = await fetch(`${BASE_URL}/attendance/upload-evidence`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    // Đọc luồng phản hồi trả về từ backend
+    const isJson = res.headers.get('content-type')?.includes('application/json');
+    const body = isJson ? await res.json() : null;
+
+    if (!res.ok) {
+      throw new Error(body?.error || `Lỗi tải file lên (${res.status})`);
+    }
+    return body;
+  },
 };

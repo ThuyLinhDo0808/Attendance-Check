@@ -46,6 +46,10 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+
+const server = app.listen(PORT, () => {
   console.log(`Attendance & Fine Management API listening on port ${PORT}`);
 });
+
+// Set timeout để cho phép upload video lớn lên đến 30 phút
+server.timeout = 1800000;
