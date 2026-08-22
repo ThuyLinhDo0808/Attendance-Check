@@ -77,6 +77,15 @@ settings *current at that moment*, then stored — never recalculated from
 live settings later, so historical fines stay accurate to the policy that
 was in effect when they were earned.
 
+### 3. Video Evidence & Google Drive Integration
+
+The system suports attaching video or image evidence to late check-in records. To bypass standard Service Account storage quotas, media files are authenticated via OAuth 2.0 and pushed directly to a centralized Google Drive folder:
+
+- **Bulk Tagging Architecture**: Instead of slicing a continuous morning recording into individual clips, admins can click **Upload Video & Tag Names** to upload a single master video. The interface groups missing evidence by date, allowing the admin to tag multiple employees who appear in the footage. The backend links the single Google Drive file ID across all selected attendance logs, drastically reducing upload times and storage overhead.
+- **Dynamic Auto-Remaining**: Uoloaded files are automatically reformatted and renamed based on the specific date of the late arrival (e.g., `20-09-2026_12345_1_mov`). This guarantees the remote Drive folder remains perfectly organized and searchable without manual intervention.
+- **Manual Evidence Overides**: For days where physical recording was missed but the lateness is acknowledged, admins can flag records as "Manually Confirmed". This skips the file upload requirement while satisfying the missing evidence UI warnings.
+- **Console & Progreses Tracking**: To handle large video files natively on the web dashboard, the UI implements a simulated terminal console alongside a real-time progress bar, ensuring the admin always has visibility into the currenet upload state.
+
 ## Data visualization
 
 The **Company Analytics** tab includes:
@@ -282,8 +291,10 @@ npm install
 | DELETE | `/api/attendance/:id` | Remove a log entry |
 | POST   | `/api/attendance/checkin` | Mobile QR check-in endpoint JS
 | POST   | `/api/attendance/excuse` | Submit mobile excuse report  
-|GET     | `/api/attendance/pending-excuses` | Fetch pending excuse requests for admin
-|POST    | `/api/attendance/resolve-excuse` | Approve or reject an excuse request
+| GET     | `/api/attendance/pending-excuses` | Fetch pending excuse requests for admin
+| POST    | `/api/attendance/resolve-excuse` | Approve or reject an excuse request
+| POST    | `/api/attendance/upload-evidence` | Upload media via OAuth2, dynamically rename by date, and bulk-tag multiple log IDs.
+| POST   | `/api/attendance/mark-manual-evidance` | Tag late logs as manually confirmed without requiring an actual file upload
 | GET    | `/api/analytics/monthly?month=YYYY-MM` | Company-wide totals + late workers that month |
 | GET    | `/api/analytics/trends?months=6` | Zero-filled monthly series for the trend charts |
 | GET    | `/api/analytics/employee/:code` | One employee's totals + full check-in history |
