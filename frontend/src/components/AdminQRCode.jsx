@@ -36,7 +36,7 @@ export default function AdminQRCode() {
 
   return (
     <div className="flex flex-col items-center justify-center p-8 bg-white rounded-xl shadow-lg w-fit mx-auto mt-10">
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">Check-in Điện Tử</h2>
+      <h2 className="text-2xl font-bold text-gray-800 mb-2">Check-in</h2>
       <p className="text-gray-500 mb-6 text-sm">Yêu cầu nhân viên mở App để quét mã này</p>
       
       {/* Khung chứa mã QR */}

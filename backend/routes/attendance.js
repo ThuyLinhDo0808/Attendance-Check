@@ -387,33 +387,63 @@ router.post('/resolve-excuse', async (req, res, next) => {
 });
 
 /**
+ * POST /api/attendance/mark-manual-evidence
+ * Đánh dấu đã có bằng chứng (dành cho những hôm quên quay video)
+ */
+router.post('/mark-manual-evidence', async (req, res, next) => {
+  try {
+    const { log_ids } = req.body;
+    if (!log_ids || log_ids.length === 0) return res.status(400).json({ error: 'Not selected any logs' });
+
+    for (const logId of log_ids) {
+        await pool.query(
+          `UPDATE attendance_logs 
+           SET evidence_files = (COALESCE(evidence_files, '[]'::jsonb) || '["MANUAL_MARK_NO_FILE"]'::jsonb), 
+               updated_at = NOW()
+           WHERE id = $1`,
+          [logId]
+        );
+    }
+    res.json({ success: true, message: 'Confirmed!' });
+  } catch (err) { 
+    next(err); 
+  }
+});
+
+/**
  * POST /api/attendance/upload-evidence
- * Nhận video từ client, đẩy lên Google Drive và lưu ID vào bảng attendance_logs
+ * Nhận video, đổi tên theo Ngày vi phạm, tải lên Drive và gắn Tag
  */
 router.post('/upload-evidence', upload.array('media', 5), async (req, res, next) => {
   try {
-    // Nhận mảng log_ids (chứa ID chính xác của từng lần đi muộn) thay vì employee_codes
-    const { log_ids } = req.body; 
+    const { log_ids, custom_name } = req.body; 
     const files = req.files;
 
     if (!files || files.length === 0 || !log_ids) {
-      return res.status(400).json({ error: 'Thiếu file hoặc chưa chọn bản ghi.' });
+      return res.status(400).json({ error: 'Missing files or no logs selected.' });
     }
 
     const parsedIds = JSON.parse(log_ids);
-    if (parsedIds.length === 0) return res.status(400).json({ error: 'Chưa chọn bản ghi nào.' });
+    if (parsedIds.length === 0) return res.status(400).json({ error: 'No logs selected.' });
 
     const rootFolderId = process.env.DRIVE_FOLDER_ID;
     const uploadedFileIds = [];
     
-    // Tải video lên Drive đúng 1 lần duy nhất
-    for (const file of files) {
-        const fileId = await uploadFileToDrive(file.path, file.originalname, rootFolderId);
+    // Xử lý đổi tên: Xoá dấu '/' thành '-' để tránh lỗi đường dẫn hệ thống
+    const baseName = custom_name ? custom_name.replace(/\//g, '-') : 'Evidence';
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // Lấy đuôi file gốc (VD: .mp4, .mov)
+        const ext = file.originalname.substring(file.originalname.lastIndexOf('.'));
+        // Tạo tên mới: VD "20-09-2026_168456789_1.MOV" (Thêm Date.now() để không bao giờ bị trùng)
+        const newFileName = `${baseName}_${Date.now()}_${i+1}${ext}`;
+
+        const fileId = await uploadFileToDrive(file.path, newFileName, rootFolderId);
         uploadedFileIds.push(fileId);
         fs.unlinkSync(file.path);
     }
 
-    // Lặp qua từng ID sự kiện đi muộn để gán chung ID video vào
     for (const logId of parsedIds) {
         await pool.query(
           `UPDATE attendance_logs 
@@ -424,7 +454,7 @@ router.post('/upload-evidence', upload.array('media', 5), async (req, res, next)
         );
     }
 
-    res.json({ success: true, message: 'Đã tải lên và gắn Tag thành công!', fileIds: uploadedFileIds });
+    res.json({ success: true, message: 'Successfully uploaded and tagged!', fileIds: uploadedFileIds });
   } catch (err) {
     if (req.files) req.files.forEach(f => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); });
     next(err);
