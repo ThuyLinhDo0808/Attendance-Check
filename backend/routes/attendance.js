@@ -461,4 +461,34 @@ router.post('/upload-evidence', upload.array('media', 5), async (req, res, next)
   }
 });
 
+/**
+ * POST /api/attendance/archive-month
+ * Đánh dấu toàn bộ bằng chứng của một tháng thành Lưu trữ ngoại tuyến
+ */
+router.post('/archive-month', async (req, res, next) => {
+  try {
+    const { month } = req.body; // Định dạng 'YYYY-MM'
+    if (!month) return res.status(400).json({ error: 'Missing month information.' });
+
+    // Tạo ngày mùng 1 của tháng đó để so sánh
+    const startDate = `${month}-01`;
+
+    // Cập nhật toàn bộ những người ĐÃ CÓ bằng chứng trong tháng đó thành dạng Offline
+    await pool.query(
+      `UPDATE attendance_logs 
+       SET evidence_files = '["ARCHIVED_OFFLINE"]'::jsonb, 
+           updated_at = NOW()
+       WHERE date_trunc('month', work_date) = date_trunc('month', $1::date)
+         AND evidence_files IS NOT NULL 
+         AND evidence_files::text != '[]'
+         AND NOT evidence_files @> '["ARCHIVED_OFFLINE"]'::jsonb`,
+      [startDate]
+    );
+
+    res.json({ success: true, message: `Successfully archived all records for month ${month}!` });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

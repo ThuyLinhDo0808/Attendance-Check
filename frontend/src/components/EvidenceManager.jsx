@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import { MagnifyingGlassIcon, CheckCircleIcon, ExclamationCircleIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { 
+  MagnifyingGlassIcon, 
+  CheckCircleIcon, 
+  ExclamationCircleIcon, 
+  UserGroupIcon,
+  ArchiveBoxIcon 
+} from '@heroicons/react/24/outline';
 
 export default function EvidenceManager() {
   const [logs, setLogs] = useState([]);
@@ -39,9 +45,8 @@ export default function EvidenceManager() {
     setSelectedLogIds(prev => prev.includes(logId) ? prev.filter(id => id !== logId) : [...prev, logId]);
   };
 
-  // Tính năng 2: Đánh dấu thủ công không cần file
   const handleManualMark = async (logIdsArray) => {
-    if (logIdsArray.length === 0) return alert("Chưa chọn bản ghi nào!");
+    if (logIdsArray.length === 0) return alert("Please select at least one record!");
     if (!window.confirm("Are you sure you want to mark these logs as having evidence without uploading a video?")) return;
 
     setIsUploading(true);
@@ -54,13 +59,35 @@ export default function EvidenceManager() {
         const data = await res.json();
         if(!res.ok) throw new Error(data.error);
 
-        alert('Confirmed!');
+        alert('Confirmed manually!');
         setBulkMode(false);
         setSelectedLogIds([]);
         fetchLateLogs();
+    } catch (err) { alert(`Error: ${err.message}`); } 
+    finally { setIsUploading(false); }
+  };
+
+  const handleArchiveMonth = async () => {
+    const month = window.prompt("Enter the month to archive offline (Format: YYYY-MM, e.g., 2026-08):", "2026-08");
+    if (!month) return;
+    if (!/^\d{4}-\d{2}$/.test(month)) return alert("Invalid format! Please use YYYY-MM (e.g., 2026-08)");
+
+    if (!window.confirm(`⚠️ IMPORTANT:\nThis action will freeze all evidence for ${month}.\n\nHave you ALREADY DOWNLOADED the ZIP file of this month's videos from Google Drive to your local computer?`)) return;
+
+    try {
+        const res = await fetch('/api/attendance/archive-month', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ month })
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.error);
+
+        alert(data.message + "\nYou can now safely delete this month's videos on Google Drive to free up space!");
+        fetchLateLogs();
     } catch (err) {
-        alert(`Lỗi: ${err.message}`);
-    } finally { setIsUploading(false); }
+        alert(`Error: ${err.message}`);
+    }
   };
 
   const handleUpload = async (files, logIdsArray) => {
@@ -78,13 +105,12 @@ export default function EvidenceManager() {
     const dateString = firstLog ? new Date(firstLog.work_date).toLocaleDateString('vi-VN') : 'Evidence';
     formData.append('custom_name', dateString);
 
-    // Giả lập Progress Bar để user biết hệ thống vẫn đang chạy
     const progressInterval = setInterval(() => {
         setUploadProgress(prev => (prev < 85 ? prev + 3 : prev));
     }, 2000);
 
     setTimeout(() => {
-        setUploadLogs(prev => [...prev, "🚀 Uploading files to Google Drive... (This may take 1-3 minutes depending on file size)"]);
+        setUploadLogs(prev => [...prev, "🚀 Uploading files to Google Drive... (This may take 1-3 minutes)"]);
         setUploadProgress(30);
     }, 1500);
 
@@ -132,15 +158,27 @@ export default function EvidenceManager() {
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Evidence Manager</h2>
-            <p className="text-sm text-slate-500">The system will automatically rename video files according to the date of lateness.</p>
+            <p className="text-sm text-slate-500">Auto-renames files and supports monthly offline ZIP archiving.</p>
           </div>
-          <button 
-            onClick={() => setBulkMode(!bulkMode)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-          >
-            <UserGroupIcon className="w-5 h-5" />
-            {bulkMode ? 'Close Bulk Mode' : 'Upload Common Video & Tag Names'}
-          </button>
+          
+          <div className="flex gap-2">
+            {/* Nút Archive */}
+            <button 
+              onClick={handleArchiveMonth}
+              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-slate-300"
+            >
+              <ArchiveBoxIcon className="w-5 h-5" />
+              Archive Month
+            </button>
+
+            <button 
+              onClick={() => setBulkMode(!bulkMode)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            >
+              <UserGroupIcon className="w-5 h-5" />
+              {bulkMode ? 'Close Bulk Mode' : 'Upload Common Video & Tag Names'}
+            </button>
+          </div>
         </div>
 
         {bulkMode && (
@@ -182,7 +220,6 @@ export default function EvidenceManager() {
                 Selected: {selectedLogIds.length} records
               </span>
               
-              {/* Nút đánh dấu không cần file */}
               <button 
                 onClick={() => handleManualMark(selectedLogIds)}
                 disabled={selectedLogIds.length === 0 || isUploading}
@@ -200,7 +237,6 @@ export default function EvidenceManager() {
               </button>
             </div>
 
-            {/* Khung Console hiển thị Log & Progress Bar */}
             {isUploading && (
               <div className="mt-4 bg-slate-900 p-4 rounded-lg shadow-inner">
                 <div className="font-mono text-xs text-green-400 space-y-1 mb-3">
@@ -232,8 +268,11 @@ export default function EvidenceManager() {
       <div className="p-6 grid gap-6 grid-cols-1 lg:grid-cols-2">
         {filteredLogs.map(log => {
           const evidenceFiles = getEvidenceArray(log.evidence_files);
+          
+          // Phân loại trạng thái của Bằng chứng
+          const isArchived = evidenceFiles.includes("ARCHIVED_OFFLINE");
           const isManualMark = evidenceFiles.includes("MANUAL_MARK_NO_FILE");
-          const driveFiles = evidenceFiles.filter(id => id !== "MANUAL_MARK_NO_FILE");
+          const driveFiles = evidenceFiles.filter(id => id !== "MANUAL_MARK_NO_FILE" && id !== "ARCHIVED_OFFLINE");
           const hasEvidence = evidenceFiles.length > 0;
 
           return (
@@ -254,28 +293,39 @@ export default function EvidenceManager() {
               </div>
               <div className="flex-1 border-t border-slate-100 pt-4">
                 
-                {isManualMark && (
-                  <div className="text-sm text-green-600 font-medium mb-3">✓ Marked manually (No video saved)</div>
-                )}
-
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Drive Files</span>
-                  <label className="cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs py-1.5 px-3 rounded font-medium transition-colors">
-                    + Update Video
-                    <input type="file" multiple className="hidden" onChange={(e) => handleUpload(Array.from(e.target.files), [log.id])} />
-                  </label>
-                </div>
-                
-                {driveFiles.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    {driveFiles.map((fileId, index) => (
-                      <div key={fileId} className="relative w-full rounded-md border border-slate-200 bg-slate-100 overflow-hidden shadow-sm" style={{ paddingTop: '56.25%' }}>
-                        <iframe title={`video-${index}`} src={`https://drive.google.com/file/d/${fileId}/preview`} className="absolute top-0 left-0 w-full h-full border-0"></iframe>
-                      </div>
-                    ))}
+                {/* HIỂN THỊ TRẠNG THÁI OFFLINE HOẶC THỦ CÔNG */}
+                {isArchived ? (
+                  <div className="text-sm text-slate-500 font-medium mb-3 flex items-center gap-2 bg-slate-100 p-3 rounded border border-slate-200">
+                    <ArchiveBoxIcon className="w-5 h-5 text-slate-400" />
+                    🗄️ Evidence has been zipped and securely archived offline.
                   </div>
-                ) : (
-                  !isManualMark && <div className="text-sm text-slate-400 py-6 text-center italic border border-dashed border-slate-200 rounded-md">No video/images available.</div>
+                ) : isManualMark ? (
+                  <div className="text-sm text-green-600 font-medium mb-3">✓ Marked manually (No video saved)</div>
+                ) : null}
+
+                {/* ẨN NÚT UPLOAD VÀ VIDEO NẾU ĐÃ ARCHIVE */}
+                {!isArchived && (
+                  <>
+                    <div className="mb-4 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Drive Files</span>
+                      <label className="cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs py-1.5 px-3 rounded font-medium transition-colors">
+                        + Update Video
+                        <input type="file" multiple className="hidden" onChange={(e) => handleUpload(Array.from(e.target.files), [log.id])} />
+                      </label>
+                    </div>
+                    
+                    {driveFiles.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        {driveFiles.map((fileId, index) => (
+                          <div key={fileId} className="relative w-full rounded-md border border-slate-200 bg-slate-100 overflow-hidden shadow-sm" style={{ paddingTop: '56.25%' }}>
+                            <iframe title={`video-${index}`} src={`https://drive.google.com/file/d/${fileId}/preview`} className="absolute top-0 left-0 w-full h-full border-0"></iframe>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      !isManualMark && <div className="text-sm text-slate-400 py-6 text-center italic border border-dashed border-slate-200 rounded-md">No video/images available.</div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
