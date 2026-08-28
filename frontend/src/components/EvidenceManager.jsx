@@ -5,13 +5,19 @@ import {
   CheckCircleIcon, 
   ExclamationCircleIcon, 
   UserGroupIcon,
-  ArchiveBoxIcon 
+  ArchiveBoxIcon,
+  CalendarIcon
 } from '@heroicons/react/24/outline';
 
 export default function EvidenceManager() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkFiles, setBulkFiles] = useState([]);
   const [selectedLogIds, setSelectedLogIds] = useState([]);
@@ -26,23 +32,43 @@ export default function EvidenceManager() {
   const fetchLateLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getAttendanceLogs({ lateOnly: true });
+      const data = await api.getAttendanceLogs({ lateOnly: true, month: selectedMonth });
       setLogs(data);
     } catch (err) { console.error(err); } 
     finally { setLoading(false); }
-  }, []);
+  }, [selectedMonth]); 
 
   useEffect(() => { fetchLateLogs(); }, [fetchLateLogs]);
 
-  const logsByDate = logs.reduce((acc, log) => {
-    const dateStr = new Date(log.work_date).toLocaleDateString('vi-VN');
-    if (!acc[dateStr]) acc[dateStr] = [];
-    acc[dateStr].push(log);
-    return acc;
-  }, {});
+  const getEvidenceArray = (evidence_files) => {
+    if (!evidence_files) return [];
+    if (Array.isArray(evidence_files)) return evidence_files;
+    try { return JSON.parse(evidence_files); } catch { return []; }
+  };
 
   const toggleTag = (logId) => {
     setSelectedLogIds(prev => prev.includes(logId) ? prev.filter(id => id !== logId) : [...prev, logId]);
+  };
+
+  const handleBulkFileChange = (e) => {
+    const newFiles = Array.from(e.target.files);
+    const combinedFiles = [...bulkFiles, ...newFiles];
+
+    if (combinedFiles.length > 5) {
+      return alert('You can only select up to 5 files at a time!');
+    }
+    
+    const totalSize = combinedFiles.reduce((acc, file) => acc + file.size, 0);
+    if (totalSize > 2000 * 1024 * 1024) {
+      return alert('Total file size exceeds 2GB.');
+    }
+
+    setBulkFiles(combinedFiles);
+    e.target.value = null; // Reset input để có thể chọn lại file vừa xóa
+  };
+
+  const removeBulkFile = (indexToRemove) => {
+    setBulkFiles(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   const handleManualMark = async (logIdsArray) => {
@@ -68,7 +94,7 @@ export default function EvidenceManager() {
   };
 
   const handleArchiveMonth = async () => {
-    const month = window.prompt("Enter the month to archive offline (Format: YYYY-MM, e.g., 2026-08):", "2026-08");
+    const month = window.prompt("Enter the month to archive offline (Format: YYYY-MM):", selectedMonth);
     if (!month) return;
     if (!/^\d{4}-\d{2}$/.test(month)) return alert("Invalid format! Please use YYYY-MM (e.g., 2026-08)");
 
@@ -136,13 +162,8 @@ export default function EvidenceManager() {
     } 
   };
 
-  const getEvidenceArray = (evidence_files) => {
-    if (!evidence_files) return [];
-    if (Array.isArray(evidence_files)) return evidence_files;
-    try { return JSON.parse(evidence_files); } catch { return []; }
-  };
-
-  const filteredLogs = logs.filter(log => {
+  // 3. Filter và Sorting logic
+  let filteredLogs = logs.filter(log => {
     const hasEvidence = getEvidenceArray(log.evidence_files).length > 0;
     if (filterStatus === 'MISSING' && hasEvidence) return false;
     if (filterStatus === 'UPLOADED' && !hasEvidence) return false;
@@ -150,25 +171,46 @@ export default function EvidenceManager() {
     return true;
   });
 
-  if (loading) return <div className="p-4">Data Uploading...</div>;
+  // Ưu tiên đưa những người CHƯA CÓ BẰNG CHỨNG lên trên, sau đó mới xếp theo ngày
+  filteredLogs = filteredLogs.sort((a, b) => {
+    const aHasEvd = getEvidenceArray(a.evidence_files).length > 0;
+    const bHasEvd = getEvidenceArray(b.evidence_files).length > 0;
+    
+    if (aHasEvd === bHasEvd) {
+      // Nếu cùng trạng thái, cái nào mới diễn ra xếp trước
+      return new Date(b.work_date) - new Date(a.work_date); 
+    }
+    return aHasEvd ? 1 : -1; // Chưa có bằng chứng (false) xếp lên trên (return -1)
+  });
+
+  // Group cho phần Bulk Upload
+  const logsByDate = filteredLogs.reduce((acc, log) => {
+    const dateStr = new Date(log.work_date).toLocaleDateString('vi-VN');
+    if (!acc[dateStr]) acc[dateStr] = [];
+    acc[dateStr].push(log);
+    return acc;
+  }, {});
+
+
+  if (loading) return <div className="p-4 flex justify-center items-center h-40 text-slate-500 font-medium">Data is loading...</div>;
 
   return (
     <div className="bg-white shadow-sm rounded-lg border border-slate-200">
       <div className="px-6 py-5 border-b border-slate-200">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Evidence Manager</h2>
-            <p className="text-sm text-slate-500">Auto-renames files and supports monthly offline ZIP archiving.</p>
+            <p className="text-sm text-slate-500">Manage evidence files for each log entry</p>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {/* Nút Archive */}
             <button 
               onClick={handleArchiveMonth}
               className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-slate-300"
             >
               <ArchiveBoxIcon className="w-5 h-5" />
-              Archive Month
+              Archive {selectedMonth}
             </button>
 
             <button 
@@ -176,36 +218,92 @@ export default function EvidenceManager() {
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               <UserGroupIcon className="w-5 h-5" />
-              {bulkMode ? 'Close Bulk Mode' : 'Upload Common Video & Tag Names'}
+              {bulkMode ? 'Close Bulk Mode' : 'Upload Bulk Evidence'}
             </button>
           </div>
         </div>
 
-        {bulkMode && (
-          <div className="bg-blue-50 border border-blue-200 p-5 rounded-lg mb-6 shadow-inner">
+        {/* Thanh filter và Month Picker */}
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
+          <div className="flex flex-wrap items-center gap-4 w-full">
+            
+            {/* CỤM CHỌN THÁNG */}
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 border border-slate-300 rounded-md shadow-sm">
+              <CalendarIcon className="w-4 h-4 text-slate-500" />
+              <input 
+                type="month" 
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="text-sm outline-none text-slate-700 font-medium cursor-pointer"
+              />
+            </div>
+
+            <div className="flex space-x-1 bg-slate-200/50 p-1 rounded-md">
+              {['ALL', 'MISSING', 'UPLOADED'].map(status => (
+                <button 
+                  key={status} 
+                  onClick={() => setFilterStatus(status)} 
+                  className={`px-4 py-1.5 text-sm font-medium rounded ${filterStatus === status ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
+                >
+                  {status === 'ALL' ? 'All' : status === 'MISSING' ? 'Missing Video' : 'Uploaded'}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative flex-1 md:max-w-xs">
+              <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <input type="text" placeholder="Search by name or employee ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm outline-none focus:border-blue-500" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bulk Upload Section */}
+      {bulkMode && (
+          <div className="mx-6 mt-6 bg-blue-50 border border-blue-200 p-5 rounded-lg shadow-inner">
             <h3 className="font-semibold text-blue-800 mb-3">1. Select Video (Maximum 5 files):</h3>
             <input 
               type="file" multiple accept="video/*, image/*" 
-              onChange={e => setBulkFiles(Array.from(e.target.files))}
-              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 mb-5"
+              onChange={handleBulkFileChange}
+              disabled={isUploading}
+              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 mb-3 disabled:opacity-50"
             />
-            
-            <h3 className="font-semibold text-blue-800 mb-3">2. Mark individuals in the video:</h3>
+
+            {bulkFiles.length > 0 && (
+              <ul className="mb-5 space-y-2">
+                {bulkFiles.map((file, idx) => (
+                  <li key={idx} className="flex justify-between items-center bg-white px-3 py-2 rounded border border-blue-200 text-sm shadow-sm">
+                    <span className="truncate max-w-[90%] text-slate-700 font-medium">{file.name}</span>
+                    <button 
+                      onClick={() => removeBulkFile(idx)} 
+                      disabled={isUploading}
+                      className="text-slate-400 hover:text-red-500 font-bold px-2 transition-colors disabled:opacity-50"
+                      title="Remove this file"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+                    
+            <h3 className="font-semibold text-blue-800 mb-3">2. Mark individuals in the video (Prioritize those without evidence):</h3>
             <div className="bg-white p-4 rounded border border-blue-100 max-h-72 overflow-y-auto">
               {Object.keys(logsByDate).map(date => (
                 <div key={date} className="mb-5 last:mb-0">
                   <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">
-                    Late day: <span className="text-blue-600">{date}</span>
+                    Violation Date: <span className="text-blue-600">{date}</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {logsByDate[date].map(log => {
                       const hasEvd = getEvidenceArray(log.evidence_files).length > 0;
                       return (
-                        <label key={log.id} className={`flex items-center gap-2 cursor-pointer text-sm p-2 rounded border ${hasEvd ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-white hover:bg-blue-50 border-blue-100'}`}>
+                        <label key={log.id} className={`flex items-center gap-2 cursor-pointer text-sm p-2 rounded border transition-colors ${hasEvd ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-red-50 hover:bg-red-100 border-red-200 shadow-sm'}`}>
                           <input type="checkbox" className="w-4 h-4 text-blue-600 rounded cursor-pointer" 
                             checked={selectedLogIds.includes(log.id)} onChange={() => toggleTag(log.id)} />
                           <div className="flex flex-col">
                             <span className="truncate font-medium text-slate-700">{log.employee_name}</span>
+                            {!hasEvd && <span className="text-[10px] text-red-500 font-bold">No video available</span>}
                           </div>
                         </label>
                       )
@@ -217,7 +315,7 @@ export default function EvidenceManager() {
 
             <div className="mt-5 flex flex-col md:flex-row justify-end items-center gap-4 border-t border-blue-100 pt-4">
               <span className="text-sm font-medium text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
-                Selected: {selectedLogIds.length} records
+                Selected: {selectedLogIds.length} individuals
               </span>
               
               <button 
@@ -225,7 +323,7 @@ export default function EvidenceManager() {
                 disabled={selectedLogIds.length === 0 || isUploading}
                 className="text-blue-600 hover:text-blue-800 font-medium text-sm underline disabled:opacity-50"
               >
-                Skip (Mark as Having Evidence)
+                Skip (Manual Mark)
               </button>
 
               <button 
@@ -233,7 +331,7 @@ export default function EvidenceManager() {
                 disabled={selectedLogIds.length === 0 || bulkFiles.length === 0 || isUploading}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isUploading ? 'Processing...' : 'Confirm Upload & Tag'}
+                {isUploading ? 'Processing...' : 'Upload & Attach Tags'}
               </button>
             </div>
 
@@ -249,61 +347,50 @@ export default function EvidenceManager() {
             )}
           </div>
         )}
-        
-        <div className="flex gap-4 items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-          <div className="flex space-x-1 bg-slate-200/50 p-1 rounded-md">
-            {['ALL', 'MISSING', 'UPLOADED'].map(status => (
-              <button key={status} onClick={() => setFilterStatus(status)} className={`px-4 py-1.5 text-sm font-medium rounded ${filterStatus === status ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>
-                {status === 'ALL' ? 'All' : status === 'MISSING' ? 'Missing' : 'Uploaded'}
-              </button>
-            ))}
-          </div>
-          <div className="relative w-64">
-            <MagnifyingGlassIcon className="absolute left-3 top-2 h-4 w-4 text-slate-400" />
-            <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-1.5 border rounded-md text-sm" />
-          </div>
-        </div>
-      </div>
 
+      {/* Render Danh sách */}
       <div className="p-6 grid gap-6 grid-cols-1 lg:grid-cols-2">
+        {filteredLogs.length === 0 && (
+          <div className="col-span-full py-10 text-center text-slate-500 bg-slate-50 border border-dashed rounded-lg border-slate-300">
+            No violation data available for the month {selectedMonth}.
+          </div>
+        )}
+        
         {filteredLogs.map(log => {
           const evidenceFiles = getEvidenceArray(log.evidence_files);
           
-          // Phân loại trạng thái của Bằng chứng
           const isArchived = evidenceFiles.includes("ARCHIVED_OFFLINE");
           const isManualMark = evidenceFiles.includes("MANUAL_MARK_NO_FILE");
           const driveFiles = evidenceFiles.filter(id => id !== "MANUAL_MARK_NO_FILE" && id !== "ARCHIVED_OFFLINE");
           const hasEvidence = evidenceFiles.length > 0;
 
           return (
-            <div key={log.id} className={`border rounded-lg p-5 flex flex-col ${hasEvidence ? 'border-green-200 bg-white' : 'border-slate-200 bg-slate-50/50'}`}>
+            <div key={log.id} className={`border rounded-lg p-5 flex flex-col transition-all ${hasEvidence ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/30 shadow-sm'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="font-semibold text-slate-800 text-base">{log.employee_name} <span className="text-slate-500 font-normal">({log.employee_code})</span></h3>
                   <div className="text-sm text-slate-600 mt-1">Violation Date: <span className="font-medium text-slate-800">{new Date(log.work_date).toLocaleDateString('vi-VN')}</span></div>
-                  <div className="text-sm text-red-600 font-medium">Late: {log.minutes_late} minutes</div>
+                  <div className="text-sm text-red-600 font-medium">Late Arrival: {log.minutes_late} minutes</div>
                 </div>
                 <div>
                   {hasEvidence ? (
                     <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full text-xs font-semibold"><CheckCircleIcon className="w-4 h-4" /> Has Evidence</span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 bg-orange-50 text-orange-700 border border-orange-200 px-2.5 py-1 rounded-full text-xs font-semibold"><ExclamationCircleIcon className="w-4 h-4" /> Missing</span>
+                    <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-full text-xs font-semibold animate-pulse"><ExclamationCircleIcon className="w-4 h-4" /> Missing Video</span>
                   )}
                 </div>
               </div>
               <div className="flex-1 border-t border-slate-100 pt-4">
                 
-                {/* HIỂN THỊ TRẠNG THÁI OFFLINE HOẶC THỦ CÔNG */}
                 {isArchived ? (
                   <div className="text-sm text-slate-500 font-medium mb-3 flex items-center gap-2 bg-slate-100 p-3 rounded border border-slate-200">
                     <ArchiveBoxIcon className="w-5 h-5 text-slate-400" />
-                    🗄️ Evidence has been zipped and securely archived offline.
+                    Evidence has been compressed into a ZIP file and stored.
                   </div>
                 ) : isManualMark ? (
-                  <div className="text-sm text-green-600 font-medium mb-3">✓ Marked manually (No video saved)</div>
+                  <div className="text-sm text-green-600 font-medium mb-3">✓ Manually marked (No video available)</div>
                 ) : null}
 
-                {/* ẨN NÚT UPLOAD VÀ VIDEO NẾU ĐÃ ARCHIVE */}
                 {!isArchived && (
                   <>
                     <div className="mb-4 flex items-center justify-between">
@@ -323,7 +410,7 @@ export default function EvidenceManager() {
                         ))}
                       </div>
                     ) : (
-                      !isManualMark && <div className="text-sm text-slate-400 py-6 text-center italic border border-dashed border-slate-200 rounded-md">No video/images available.</div>
+                      !isManualMark && <div className="text-sm text-red-400 py-6 text-center italic border border-dashed border-red-200 rounded-md bg-white">No video/image uploaded.</div>
                     )}
                   </>
                 )}
