@@ -151,9 +151,14 @@ router.get('/fine-sheet', async (req, res, next) => {
     const { month } = req.query;
     const params = [];
     let monthFilter = '';
+    let empFilter = `AND e.status = 'ACTIVE'`; // Nếu xem "All-time", mặc định chỉ hiện người đang làm
+
     if (month) {
       params.push(`${month}-01`);
       monthFilter = `AND date_trunc('month', al.work_date) = date_trunc('month', $1::date)`;
+      
+      // Nếu xem theo tháng cụ thể: Hiển thị ACTIVE + INACTIVE (nếu ngày nghỉ việc >= mùng 1 của tháng đó)
+      empFilter = `AND (e.status = 'ACTIVE' OR (e.status = 'INACTIVE' AND e.effective_start_date >= $1::date))`;
     }
 
     const { rows } = await pool.query(
@@ -168,7 +173,7 @@ router.get('/fine-sheet', async (req, res, next) => {
        FROM employees e
        LEFT JOIN attendance_logs al
          ON al.employee_code = e.employee_code ${monthFilter}
-       WHERE e.is_current = TRUE
+       WHERE e.is_current = TRUE ${empFilter}
        GROUP BY e.employee_code, e.name, e.status
        ORDER BY e.name ASC`,
       params

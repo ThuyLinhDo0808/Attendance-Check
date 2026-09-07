@@ -13,51 +13,74 @@
  */
 const pool = require('../db/pool');
 
-async function fetchDetailRows(month) {
+const fetchDetailRows = async (month) => {
   const { rows } = await pool.query(
-    `SELECT al.employee_code, e.name AS employee_name,
-            al.work_date, al.check_in_time, al.check_out_time, al.minutes_late,
-            al.fine_blocks, al.total_fine, al.is_exempt, al.note
-     FROM attendance_logs al
-     JOIN employees e ON e.id = al.employee_id
-     WHERE date_trunc('month', al.work_date) = date_trunc('month', $1::date)
+    `SELECT
+       e.employee_code,
+       e.name AS employee_name,
+       al.work_date,
+       al.check_in_time,
+       al.check_out_time,
+       al.minutes_late,
+       al.fine_blocks,
+       al.total_fine,
+       al.is_exempt,
+       al.note
+     FROM employees e
+     JOIN attendance_logs al
+       ON al.employee_code = e.employee_code
+       AND date_trunc('month', al.work_date) = date_trunc('month', $1::date)
+     WHERE e.is_current = TRUE
+       AND (e.status = 'ACTIVE' OR (e.status = 'INACTIVE' AND e.effective_start_date >= $1::date))
      ORDER BY e.name ASC, al.work_date ASC`,
     [`${month}-01`]
   );
   return rows;
-}
+};
 
-async function fetchSummaryRows(month) {
+const fetchSummaryRows = async (month) => {
   const { rows } = await pool.query(
-    `SELECT e.employee_code, e.name AS employee_name,
-            COUNT(al.id) FILTER (WHERE al.minutes_late > 0)  AS times_late,
-            COALESCE(SUM(al.minutes_late), 0)                 AS total_minutes_late,
-            COALESCE(SUM(al.fine_blocks), 0)                  AS total_fine_blocks,
-            COALESCE(SUM(al.total_fine), 0)                   AS total_fine
+    `SELECT
+       e.employee_code,
+       e.name AS employee_name,
+       COUNT(al.id) FILTER (WHERE al.minutes_late > 0) AS times_late,
+       COALESCE(SUM(al.minutes_late), 0) AS total_minutes_late,
+       COALESCE(SUM(al.fine_blocks), 0) AS total_fine_blocks,
+       COALESCE(SUM(al.total_fine), 0) AS total_fine
      FROM employees e
      LEFT JOIN attendance_logs al
        ON al.employee_code = e.employee_code
        AND date_trunc('month', al.work_date) = date_trunc('month', $1::date)
      WHERE e.is_current = TRUE
+       AND (e.status = 'ACTIVE' OR (e.status = 'INACTIVE' AND e.effective_start_date >= $1::date))
      GROUP BY e.employee_code, e.name
      ORDER BY e.name ASC`,
     [`${month}-01`]
   );
   return rows;
-}
+};
 
-async function fetchRangeLateRows(startDate, endDate) {
+const fetchRangeLateRows = async (startDate, endDate) => {
   const { rows } = await pool.query(
-    `SELECT al.id, al.employee_code, e.name AS employee_name,
-            al.work_date, al.check_in_time, al.minutes_late, al.fine_blocks, al.total_fine, al.note
-     FROM attendance_logs al
-     JOIN employees e ON e.id = al.employee_id
-     WHERE al.work_date >= $1::date AND al.work_date <= $2::date
+    `SELECT
+       e.employee_code,
+       e.name AS employee_name,
+       al.work_date,
+       al.check_in_time,
+       al.minutes_late,
+       al.total_fine,
+       al.note
+     FROM employees e
+     JOIN attendance_logs al
+       ON al.employee_code = e.employee_code
+       AND al.work_date >= $1::date AND al.work_date <= $2::date
        AND al.minutes_late > 0
-     ORDER BY al.work_date ASC, al.minutes_late DESC`,
+     WHERE e.is_current = TRUE
+       AND (e.status = 'ACTIVE' OR (e.status = 'INACTIVE' AND e.effective_start_date >= date_trunc('month', $1::date)))
+     ORDER BY al.work_date ASC, e.name ASC`,
     [startDate, endDate]
   );
   return rows;
-}
+};
 
 module.exports = { fetchDetailRows, fetchSummaryRows, fetchRangeLateRows };
