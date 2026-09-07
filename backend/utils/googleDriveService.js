@@ -116,8 +116,55 @@ const zipAndUploadToDrive = async (fileIdsArray, zipFileName, targetFolderId) =>
     });
 };
 
+/**
+ * Tìm thư mục theo tên (VD: T9/2026) trong thư mục gốc, nếu chưa có thì tạo mới.
+ */
+const getOrCreateFolder = async (folderName, parentFolderId) => {
+    const query = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${parentFolderId}' in parents and trashed=false`;
+    const response = await driveService.files.list({
+        q: query,
+        fields: 'files(id, name)',
+    });
+
+    if (response.data.files.length > 0) {
+        return response.data.files[0].id; // Trả về ID nếu thư mục đã tồn tại
+    }
+
+    // Nếu chưa tồn tại thì tạo mới
+    const fileMetadata = {
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentFolderId]
+    };
+    const folder = await driveService.files.create({
+        resource: fileMetadata,
+        fields: 'id'
+    });
+    
+    // Cấp quyền đọc công khai (tuỳ chọn)
+    await driveService.permissions.create({
+        fileId: folder.data.id, requestBody: { role: 'reader', type: 'anyone' }
+    });
+
+    return folder.data.id;
+};
+
+/**
+ * Lấy tất cả ID của các file (không phải thư mục) nằm trong một thư mục cụ thể.
+ */
+const getFilesInFolder = async (folderId) => {
+    const query = `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false`;
+    const response = await driveService.files.list({
+        q: query,
+        fields: 'files(id, name)'
+    });
+    return response.data.files.map(f => f.id);
+};
+
 module.exports = { 
     uploadFileToDrive, 
     deleteDriveFiles, 
-    zipAndUploadToDrive 
+    zipAndUploadToDrive,
+    getOrCreateFolder,
+    getFilesInFolder
 };

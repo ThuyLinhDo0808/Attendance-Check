@@ -5,7 +5,7 @@ const { getSettings } = require('../utils/settingsCache');
 const { triggerAutoSync } = require('../utils/googleSheetsSync');
 const multer = require('multer');
 const fs = require('fs');
-const { getOrCreateEmployeeFolder, uploadFileToDrive } = require('../utils/googleDriveService');
+const { uploadFileToDrive, getOrCreateFolder, getFilesInFolder, zipAndUploadToDrive, deleteDriveFiles } = require('../utils/googleDriveService');
 const upload = multer({ 
   dest: 'uploads/',
   limits: {
@@ -427,19 +427,22 @@ router.post('/upload-evidence', upload.array('media', 5), async (req, res, next)
     if (parsedIds.length === 0) return res.status(400).json({ error: 'No logs selected.' });
 
     const rootFolderId = process.env.DRIVE_FOLDER_ID;
-    const uploadedFileIds = [];
     
-    // Xử lý đổi tên: Xoá dấu '/' thành '-' để tránh lỗi đường dẫn hệ thống
+    // Tự động lấy tháng hiện tại (VD: T9/2026) và lấy Target Folder ID
+    const currentDate = new Date();
+    const monthFolderName = `T${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
+    const targetFolderId = await getOrCreateFolder(monthFolderName, rootFolderId);
+
+    const uploadedFileIds = [];
     const baseName = custom_name ? custom_name.replace(/\//g, '-') : 'Evidence';
     
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        // Lấy đuôi file gốc (VD: .mp4, .mov)
         const ext = file.originalname.substring(file.originalname.lastIndexOf('.'));
-        // Tạo tên mới: VD "20-09-2026_168456789_1.MOV" (Thêm Date.now() để không bao giờ bị trùng)
         const newFileName = `${baseName}_${Date.now()}_${i+1}${ext}`;
 
-        const fileId = await uploadFileToDrive(file.path, newFileName, rootFolderId);
+        // Upload file vào targetFolderId thay vì rootFolderId
+        const fileId = await uploadFileToDrive(file.path, newFileName, targetFolderId);
         uploadedFileIds.push(fileId);
         fs.unlinkSync(file.path);
     }
@@ -454,7 +457,7 @@ router.post('/upload-evidence', upload.array('media', 5), async (req, res, next)
         );
     }
 
-    res.json({ success: true, message: 'Successfully uploaded and tagged!', fileIds: uploadedFileIds });
+    res.json({ success: true, message: 'Successfully uploaded and tagged to month folder!', fileIds: uploadedFileIds });
   } catch (err) {
     if (req.files) req.files.forEach(f => { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); });
     next(err);
@@ -463,17 +466,48 @@ router.post('/upload-evidence', upload.array('media', 5), async (req, res, next)
 
 /**
  * POST /api/attendance/archive-month
- * Đánh dấu toàn bộ bằng chứng của một tháng thành Lưu trữ ngoại tuyến
+ * 1. Gom tất cả file lẻ trong folder tháng đó lại thành 1 file ZIP (lưu vào chính folder đó).
+ * 2. Xóa các file lẻ đó trên Drive để giải phóng dung lượng.
+ * 3. Đánh dấu toàn bộ bằng chứng trong Database thành Lưu trữ ngoại tuyến.
  */
 router.post('/archive-month', async (req, res, next) => {
   try {
     const { month } = req.body; // Định dạng 'YYYY-MM'
     if (!month) return res.status(400).json({ error: 'Missing month information.' });
 
-    // Tạo ngày mùng 1 của tháng đó để so sánh
+    const rootFolderId = process.env.DRIVE_FOLDER_ID;
+    
+    // Chuyển 'YYYY-MM' thành tên thư mục trên Drive (VD: 'T8/2026')
+    const [year, monthNum] = month.split('-');
+    const folderName = `T${parseInt(monthNum)}/${year}`; 
+    const zipName = `T${parseInt(monthNum)}-${year}.zip`;
+
+    try {
+        // Tìm ID thư mục của tháng đó
+        const folderId = await getOrCreateFolder(folderName, rootFolderId);
+        
+        // Lấy danh sách các file lẻ TRONG folder tháng đó
+        const fileIds = await getFilesInFolder(folderId);
+        
+        if (fileIds.length > 0) {
+            // Bước 1: Gom và nén thành 1 file ZIP, upload thẳng vào TRONG folder tháng đó (truyền vào folderId)
+            await zipAndUploadToDrive(fileIds, zipName, folderId);
+            
+            // Bước 2: Xóa các file lẻ trên Drive để giải phóng dung lượng
+            await deleteDriveFiles(fileIds);
+            
+            console.log(`Đã nén và xoá file lẻ thành công trong thư mục ${folderName}.`);
+        } else {
+            console.log(`Không có file lẻ nào trong thư mục ${folderName} để nén.`);
+        }
+    } catch (driveErr) {
+        console.error("Lỗi khi xử lý nén file trên Drive:", driveErr);
+        // Có thể ngắt request tại đây hoặc cho phép đi tiếp xuống bước 3 tuỳ bạn quyết định
+    }
+
+    // Bước 3: Đánh dấu toàn bộ bằng chứng trong Database thành Lưu trữ ngoại tuyến
     const startDate = `${month}-01`;
 
-    // Cập nhật toàn bộ những người ĐÃ CÓ bằng chứng trong tháng đó thành dạng Offline
     await pool.query(
       `UPDATE attendance_logs 
        SET evidence_files = '["ARCHIVED_OFFLINE"]'::jsonb, 
@@ -485,9 +519,37 @@ router.post('/archive-month', async (req, res, next) => {
       [startDate]
     );
 
-    res.json({ success: true, message: `Successfully archived all records for month ${month}!` });
+    res.json({ success: true, message: `Successfully zipped files in folder ${folderName} and archived records in DB!` });
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * POST /api/attendance/delete-evidence
+ * Xóa 1 file lẻ khỏi Google Drive và cập nhật lại Database
+ */
+router.post('/delete-evidence', async (req, res, next) => {
+  try {
+    const { log_id, file_id } = req.body;
+    if (!log_id || !file_id) return res.status(400).json({ error: 'Missing log_id or file_id' });
+
+    // 1. Xóa file thực tế trên Google Drive
+    await deleteDriveFiles([file_id]);
+
+    // 2. Dùng toán tử '-' của JSONB để loại bỏ ID file vừa xóa khỏi mảng evidence_files
+    await pool.query(
+      `UPDATE attendance_logs 
+       SET evidence_files = evidence_files - $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [file_id, log_id]
+    );
+
+    res.json({ success: true, message: 'Đã xóa file thành công!' });
+  } catch (err) {
+    console.error("Lỗi khi xóa file:", err);
+    res.status(500).json({ error: 'Lỗi server khi xóa file' });
   }
 });
 

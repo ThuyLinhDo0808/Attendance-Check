@@ -191,6 +191,23 @@ export default function EvidenceManager() {
     return acc;
   }, {});
 
+  const handleDeleteFile = async (logId, fileId) => {
+    if (!window.confirm("Bạn có chắc chắn muốn xóa video này khỏi hệ thống và Google Drive?")) return;
+    
+    try {
+        const res = await fetch('/api/attendance/delete-evidence', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ log_id: logId, file_id: fileId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        
+        fetchLateLogs(); // Refresh lại danh sách sau khi xóa
+    } catch (err) {
+        alert(`Lỗi khi xóa file: ${err.message}`);
+    }
+  };
 
   if (loading) return <div className="p-4 flex justify-center items-center h-40 text-slate-500 font-medium">Data is loading...</div>;
 
@@ -396,7 +413,7 @@ export default function EvidenceManager() {
                     <div className="mb-4 flex items-center justify-between">
                       <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Drive Files</span>
                       <label className="cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs py-1.5 px-3 rounded font-medium transition-colors">
-                        + Update Video
+                        + Add Video
                         <input type="file" multiple className="hidden" onChange={(e) => handleUpload(Array.from(e.target.files), [log.id])} />
                       </label>
                     </div>
@@ -404,7 +421,17 @@ export default function EvidenceManager() {
                     {driveFiles.length > 0 ? (
                       <div className="grid grid-cols-2 gap-3">
                         {driveFiles.map((fileId, index) => (
-                          <div key={fileId} className="relative w-full rounded-md border border-slate-200 bg-slate-100 overflow-hidden shadow-sm" style={{ paddingTop: '56.25%' }}>
+                          <div key={fileId} className="relative w-full rounded-md border border-slate-200 bg-slate-100 overflow-hidden shadow-sm flex-col group" style={{ paddingTop: '56.25%' }}>
+                            
+                            {/* Nút Xóa File - Chỉ hiện khi hover */}
+                            <button 
+                              onClick={() => handleDeleteFile(log.id, fileId)}
+                              className="absolute top-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md transition-colors opacity-0 group-hover:opacity-100"
+                              title="Xóa video này"
+                            >
+                              ✕
+                            </button>
+
                             <iframe title={`video-${index}`} src={`https://drive.google.com/file/d/${fileId}/preview`} className="absolute top-0 left-0 w-full h-full border-0"></iframe>
                           </div>
                         ))}

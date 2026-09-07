@@ -1,31 +1,11 @@
 /**
- * Push-based Google Sheets sync.
- *
- * Design: the backend pushes report data to a Google Sheet using a
- * service account (server-to-server auth — no OAuth login flow, no
- * "connect your Google account" screen, since this is a single-admin
- * internal tool). Sync fires automatically after every attendance
- * log/edit/delete (see routes/attendance.js), so the sheet stays current
- * without anyone downloading and re-uploading an Excel file.
- *
- * This only requires OUTBOUND internet access from the backend to
- * Google's API — it works from localhost during development, unlike a
- * pull-based Apps Script approach (which would need the backend to be
- * publicly reachable).
- *
- * Setup: see README.md "Google Sheets auto-sync" section. Until the
- * required env vars are set, every function here is a harmless no-op —
- * the rest of the app works completely normally without this feature
- * configured.
+ * Push-based Google Sheets sync (Monthly Tabs Version).
  */
 const { google } = require('googleapis');
 const { fetchDetailRows, fetchSummaryRows } = require('./reportQueries');
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const SERVICE_ACCOUNT_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-// Private keys from a downloaded JSON key file contain literal "\n"
-// sequences once pasted into a single-line .env value — convert them
-// back to real newlines, or the JWT signing step fails.
 const PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY
   ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n')
   : undefined;
@@ -83,15 +63,16 @@ function summaryRowToArray(row) {
 }
 
 /**
- * Ensures the two tabs ("Summary", "Detail") exist in the target
- * spreadsheet, creating whichever are missing. Google Sheets IDs are
- * per-spreadsheet, so this is safe to call every sync — it's a no-op
- * once both tabs already exist.
+ * Kiểm tra và tạo Tab riêng cho từng tháng (VD: Summary_2026-08)
  */
-async function ensureSheetsExist(sheets) {
+async function ensureSheetsExist(sheets, month) {
   const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
   const existingTitles = meta.data.sheets.map((s) => s.properties.title);
-  const toCreate = ['Summary', 'Detail'].filter((title) => !existingTitles.includes(title));
+  
+  const summaryTitle = `Summary_${month}`;
+  const detailTitle = `Detail_${month}`;
+  
+  const toCreate = [summaryTitle, detailTitle].filter((title) => !existingTitles.includes(title));
 
   if (toCreate.length > 0) {
     await sheets.spreadsheets.batchUpdate({
@@ -101,19 +82,18 @@ async function ensureSheetsExist(sheets) {
       },
     });
   }
+  
+  return { summaryTitle, detailTitle };
 }
 
 /**
- * Overwrites the Summary and Detail tabs with the given month's data.
- * A full overwrite (not append) keeps the sheet an exact mirror of the
- * database — safe to re-run any time, and edits/deletes are reflected
- * correctly instead of leaving stale rows behind.
+ * Xóa và cập nhật dữ liệu vào đúng tab của tháng đó.
  */
 async function syncMonthToSheet(month) {
   if (!isConfigured()) return { skipped: true, reason: 'not configured' };
 
   const sheets = await getSheetsClient();
-  await ensureSheetsExist(sheets);
+  const { summaryTitle, detailTitle } = await ensureSheetsExist(sheets, month);
 
   const [detail, summary] = await Promise.all([fetchDetailRows(month), fetchSummaryRows(month)]);
 
@@ -132,20 +112,22 @@ async function syncMonthToSheet(month) {
     ...detail.map(detailRowToArray),
   ];
 
+  // Chỉ clear và update dữ liệu trên tab của tháng hiện tại
   await Promise.all([
-    sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'Summary' }),
-    sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'Detail' }),
+    sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: summaryTitle }),
+    sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: detailTitle }),
   ]);
+  
   await Promise.all([
     sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: 'Summary!A1',
+      range: `${summaryTitle}!A1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: summaryValues },
     }),
     sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: 'Detail!A1',
+      range: `${detailTitle}!A1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: detailValues },
     }),
@@ -154,11 +136,6 @@ async function syncMonthToSheet(month) {
   return { skipped: false, month, summaryRows: summary.length, detailRows: detail.length };
 }
 
-/**
- * Fire-and-forget wrapper for calling after a log/edit/delete — never
- * throws or blocks the HTTP response on a Sheets API hiccup (network
- * blip, quota, etc). Logs the error server-side instead.
- */
 function triggerAutoSync(month) {
   if (!isConfigured()) return;
   syncMonthToSheet(month).catch((err) => {
