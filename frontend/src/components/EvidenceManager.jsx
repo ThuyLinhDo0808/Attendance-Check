@@ -171,21 +171,20 @@ export default function EvidenceManager() {
     return true;
   });
 
-  // Ưu tiên đưa những người CHƯA CÓ BẰNG CHỨNG lên trên, sau đó mới xếp theo ngày
+  // Sort by Date (Descending) -> then by Evidence Status (Missing first)
   filteredLogs = filteredLogs.sort((a, b) => {
+    const dateA = new Date(a.work_date).getTime();
+    const dateB = new Date(b.work_date).getTime();
+    if (dateA !== dateB) return dateB - dateA; 
+    
     const aHasEvd = getEvidenceArray(a.evidence_files).length > 0;
     const bHasEvd = getEvidenceArray(b.evidence_files).length > 0;
-    
-    if (aHasEvd === bHasEvd) {
-      // Nếu cùng trạng thái, cái nào mới diễn ra xếp trước
-      return new Date(b.work_date) - new Date(a.work_date); 
-    }
-    return aHasEvd ? 1 : -1; // Chưa có bằng chứng (false) xếp lên trên (return -1)
+    return aHasEvd === bHasEvd ? 0 : (aHasEvd ? 1 : -1);
   });
 
-  // Group cho phần Bulk Upload
+  // Group by Date for both Bulk Upload and Main List
   const logsByDate = filteredLogs.reduce((acc, log) => {
-    const dateStr = new Date(log.work_date).toLocaleDateString('vi-VN');
+    const dateStr = new Date(log.work_date).toLocaleDateString('en-GB'); // Format: DD/MM/YYYY
     if (!acc[dateStr]) acc[dateStr] = [];
     acc[dateStr].push(log);
     return acc;
@@ -212,46 +211,42 @@ export default function EvidenceManager() {
   if (loading) return <div className="p-4 flex justify-center items-center h-40 text-slate-500 font-medium">Data is loading...</div>;
 
   return (
-    <div className="bg-white shadow-sm rounded-lg border border-slate-200">
-      <div className="px-6 py-5 border-b border-slate-200">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+    <div className="bg-white shadow-sm rounded-xl border border-slate-200 overflow-hidden">
+      <div className="px-6 py-5 border-b border-slate-200 bg-white">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 gap-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-800">Evidence Manager</h2>
-            <p className="text-sm text-slate-500">Manage evidence files for each log entry</p>
+            <h2 className="text-xl font-bold text-slate-800">Evidence Manager</h2>
+            <p className="text-sm text-slate-500 mt-1">Manage attendance evidence records</p>
           </div>
           
-          <div className="flex flex-wrap gap-2">
-            {/* Nút Archive */}
+          <div className="flex flex-wrap gap-3">
             <button 
               onClick={handleArchiveMonth}
-              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-md text-sm font-medium transition-colors border border-slate-300"
+              className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors border border-slate-300 shadow-sm"
             >
-              <ArchiveBoxIcon className="w-5 h-5" />
+              <ArchiveBoxIcon className="w-4 h-4" />
               Archive {selectedMonth}
             </button>
 
             <button 
               onClick={() => setBulkMode(!bulkMode)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm"
             >
-              <UserGroupIcon className="w-5 h-5" />
+              <UserGroupIcon className="w-4 h-4" />
               {bulkMode ? 'Close Bulk Mode' : 'Upload Bulk Evidence'}
             </button>
           </div>
         </div>
 
-        {/* Thanh filter và Month Picker */}
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
-          <div className="flex flex-wrap items-center gap-4 w-full">
-            
-            {/* CỤM CHỌN THÁNG */}
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 border border-slate-300 rounded-md shadow-sm">
-              <CalendarIcon className="w-4 h-4 text-slate-500" />
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50/50 p-2 rounded-lg border border-slate-200">
+          <div className="flex flex-wrap items-center gap-3 w-full">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 border border-slate-300 rounded-md shadow-sm">
+              <CalendarIcon className="w-5 h-5 text-slate-400" />
               <input 
                 type="month" 
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="text-sm outline-none text-slate-700 font-medium cursor-pointer"
+                className="text-sm outline-none text-slate-700 font-semibold cursor-pointer bg-transparent"
               />
             </div>
 
@@ -260,191 +255,201 @@ export default function EvidenceManager() {
                 <button 
                   key={status} 
                   onClick={() => setFilterStatus(status)} 
-                  className={`px-4 py-1.5 text-sm font-medium rounded ${filterStatus === status ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
+                  className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-all ${filterStatus === status ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
                 >
                   {status === 'ALL' ? 'All' : status === 'MISSING' ? 'Missing Video' : 'Uploaded'}
                 </button>
               ))}
             </div>
 
-            <div className="relative flex-1 md:max-w-xs">
+            <div className="relative flex-1 md:max-w-xs ml-auto">
               <MagnifyingGlassIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <input type="text" placeholder="Search by name or employee ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm outline-none focus:border-blue-500" />
+              <input type="text" placeholder="Search by name or ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bulk Upload Section */}
       {bulkMode && (
-          <div className="mx-6 mt-6 bg-blue-50 border border-blue-200 p-5 rounded-lg shadow-inner">
-            <h3 className="font-semibold text-blue-800 mb-3">1. Select Video (Maximum 5 files):</h3>
-            <input 
-              type="file" multiple accept="video/*, image/*" 
-              onChange={handleBulkFileChange}
-              disabled={isUploading}
-              className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 mb-3 disabled:opacity-50"
-            />
+          <div className="m-6 bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
+            <div className="mb-6">
+              <h3 className="font-bold text-slate-800 mb-2">1. Select Evidence Files (Max 5 files)</h3>
+              <div className="relative border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors rounded-lg p-4 text-center">
+                <input 
+                  type="file" multiple accept="video/*, image/*" 
+                  onChange={handleBulkFileChange}
+                  disabled={isUploading}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                />
+                <span className="text-sm font-medium text-slate-600 pointer-events-none">Drag and drop files here or click to select</span>
+              </div>
 
-            {bulkFiles.length > 0 && (
-              <ul className="mb-5 space-y-2">
-                {bulkFiles.map((file, idx) => (
-                  <li key={idx} className="flex justify-between items-center bg-white px-3 py-2 rounded border border-blue-200 text-sm shadow-sm">
-                    <span className="truncate max-w-[90%] text-slate-700 font-medium">{file.name}</span>
-                    <button 
-                      onClick={() => removeBulkFile(idx)} 
-                      disabled={isUploading}
-                      className="text-slate-400 hover:text-red-500 font-bold px-2 transition-colors disabled:opacity-50"
-                      title="Remove this file"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+              {bulkFiles.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {bulkFiles.map((file, idx) => (
+                    <li key={idx} className="flex justify-between items-center bg-white px-3 py-2 rounded-md border border-slate-200 text-sm shadow-sm">
+                      <span className="truncate max-w-[90%] text-slate-700 font-medium">{file.name}</span>
+                      <button onClick={() => removeBulkFile(idx)} disabled={isUploading} className="text-slate-400 hover:text-red-500 font-bold px-2 transition-colors disabled:opacity-50">✕</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
                     
-            <h3 className="font-semibold text-blue-800 mb-3">2. Mark individuals in the video (Prioritize those without evidence):</h3>
-            <div className="bg-white p-4 rounded border border-blue-100 max-h-72 overflow-y-auto">
-              {Object.keys(logsByDate).map(date => (
-                <div key={date} className="mb-5 last:mb-0">
-                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 border-b border-slate-100 pb-1">
-                    Violation Date: <span className="text-blue-600">{date}</span>
+            <div>
+              <h3 className="font-bold text-slate-800 mb-3">2. Tag Violating Employees</h3>
+              <div className="bg-slate-50/50 p-5 rounded-lg border border-slate-200 max-h-96 overflow-y-auto">
+                {Object.keys(logsByDate).map(date => (
+                  <div key={date} className="mb-6 last:mb-0">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      Violation Date <span className="text-slate-700 bg-slate-200 px-2 py-0.5 rounded">{date}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {logsByDate[date].map(log => {
+                        const hasEvd = getEvidenceArray(log.evidence_files).length > 0;
+                        const isChecked = selectedLogIds.includes(log.id);
+                        
+                        return (
+                          <label key={log.id} className={`flex items-start gap-3 cursor-pointer text-sm p-3 rounded-lg border transition-all duration-200 ${hasEvd ? 'bg-slate-100 border-slate-200 opacity-60' : isChecked ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-400 shadow-sm' : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm'}`}>
+                            <input type="checkbox" className="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer" 
+                              checked={isChecked} onChange={() => toggleTag(log.id)} />
+                            <div className="flex flex-col">
+                              <span className="truncate font-semibold text-slate-800">{log.employee_name}</span>
+                              {!hasEvd && <span className="text-[11px] text-red-500 font-medium mt-0.5">No video</span>}
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {logsByDate[date].map(log => {
-                      const hasEvd = getEvidenceArray(log.evidence_files).length > 0;
-                      return (
-                        <label key={log.id} className={`flex items-center gap-2 cursor-pointer text-sm p-2 rounded border transition-colors ${hasEvd ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-red-50 hover:bg-red-100 border-red-200 shadow-sm'}`}>
-                          <input type="checkbox" className="w-4 h-4 text-blue-600 rounded cursor-pointer" 
-                            checked={selectedLogIds.includes(log.id)} onChange={() => toggleTag(log.id)} />
-                          <div className="flex flex-col">
-                            <span className="truncate font-medium text-slate-700">{log.employee_name}</span>
-                            {!hasEvd && <span className="text-[10px] text-red-500 font-bold">No video available</span>}
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            <div className="mt-5 flex flex-col md:flex-row justify-end items-center gap-4 border-t border-blue-100 pt-4">
-              <span className="text-sm font-medium text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
-                Selected: {selectedLogIds.length} individuals
+            <div className="mt-6 flex flex-col md:flex-row justify-end items-center gap-4 border-t border-slate-200 pt-5">
+              <span className="text-sm font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-md border border-blue-100">
+                Selected: {selectedLogIds.length} employees
               </span>
               
               <button 
                 onClick={() => handleManualMark(selectedLogIds)}
                 disabled={selectedLogIds.length === 0 || isUploading}
-                className="text-blue-600 hover:text-blue-800 font-medium text-sm underline disabled:opacity-50"
+                className="text-slate-500 hover:text-slate-800 font-semibold text-sm underline disabled:opacity-50"
               >
-                Skip (Manual Mark)
+                Manual Mark (No file)
               </button>
 
               <button 
                 onClick={() => handleUpload(bulkFiles, selectedLogIds)}
                 disabled={selectedLogIds.length === 0 || bulkFiles.length === 0 || isUploading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded shadow-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg shadow-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isUploading ? 'Processing...' : 'Upload & Attach Tags'}
               </button>
             </div>
 
             {isUploading && (
-              <div className="mt-4 bg-slate-900 p-4 rounded-lg shadow-inner">
-                <div className="font-mono text-xs text-green-400 space-y-1 mb-3">
+              <div className="mt-5 bg-slate-800 p-4 rounded-lg shadow-inner">
+                <div className="font-mono text-xs text-emerald-400 space-y-1 mb-3">
                   {uploadLogs.map((logMsg, idx) => <div key={idx}>{logMsg}</div>)}
                 </div>
-                <div className="w-full bg-slate-700 rounded-full h-2">
-                  <div className="bg-blue-500 h-2 rounded-full transition-all duration-500" style={{ width: `${uploadProgress}%` }}></div>
+                <div className="w-full bg-slate-700 rounded-full h-1.5">
+                  <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-500" style={{ width: `${uploadProgress}%` }}></div>
                 </div>
               </div>
             )}
           </div>
         )}
 
-      {/* Render Danh sách */}
-      <div className="p-6 grid gap-6 grid-cols-1 lg:grid-cols-2">
-        {filteredLogs.length === 0 && (
-          <div className="col-span-full py-10 text-center text-slate-500 bg-slate-50 border border-dashed rounded-lg border-slate-300">
-            No violation data available for the month {selectedMonth}.
+      <div className="p-6 bg-slate-50/50">
+        {Object.keys(logsByDate).length === 0 && (
+          <div className="py-12 text-center text-slate-500 bg-white border border-dashed rounded-xl border-slate-300">
+            No matching violation records found.
           </div>
         )}
         
-        {filteredLogs.map(log => {
-          const evidenceFiles = getEvidenceArray(log.evidence_files);
-          
-          const isArchived = evidenceFiles.includes("ARCHIVED_OFFLINE");
-          const isManualMark = evidenceFiles.includes("MANUAL_MARK_NO_FILE");
-          const driveFiles = evidenceFiles.filter(id => id !== "MANUAL_MARK_NO_FILE" && id !== "ARCHIVED_OFFLINE");
-          const hasEvidence = evidenceFiles.length > 0;
-
-          return (
-            <div key={log.id} className={`border rounded-lg p-5 flex flex-col transition-all ${hasEvidence ? 'border-slate-200 bg-white' : 'border-red-200 bg-red-50/30 shadow-sm'}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-semibold text-slate-800 text-base">{log.employee_name} <span className="text-slate-500 font-normal">({log.employee_code})</span></h3>
-                  <div className="text-sm text-slate-600 mt-1">Violation Date: <span className="font-medium text-slate-800">{new Date(log.work_date).toLocaleDateString('vi-VN')}</span></div>
-                  <div className="text-sm text-red-600 font-medium">Late Arrival: {log.minutes_late} minutes</div>
-                </div>
-                <div>
-                  {hasEvidence ? (
-                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full text-xs font-semibold"><CheckCircleIcon className="w-4 h-4" /> Has Evidence</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-full text-xs font-semibold animate-pulse"><ExclamationCircleIcon className="w-4 h-4" /> Missing Video</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 border-t border-slate-100 pt-4">
-                
-                {isArchived ? (
-                  <div className="text-sm text-slate-500 font-medium mb-3 flex items-center gap-2 bg-slate-100 p-3 rounded border border-slate-200">
-                    <ArchiveBoxIcon className="w-5 h-5 text-slate-400" />
-                    Evidence has been compressed into a ZIP file and stored.
-                  </div>
-                ) : isManualMark ? (
-                  <div className="text-sm text-green-600 font-medium mb-3">✓ Manually marked (No video available)</div>
-                ) : null}
-
-                {!isArchived && (
-                  <>
-                    <div className="mb-4 flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Drive Files</span>
-                      <label className="cursor-pointer bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs py-1.5 px-3 rounded font-medium transition-colors">
-                        + Add Video
-                        <input type="file" multiple className="hidden" onChange={(e) => handleUpload(Array.from(e.target.files), [log.id])} />
-                      </label>
-                    </div>
-                    
-                    {driveFiles.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        {driveFiles.map((fileId, index) => (
-                          <div key={fileId} className="relative w-full rounded-md border border-slate-200 bg-slate-100 overflow-hidden shadow-sm flex-col group" style={{ paddingTop: '56.25%' }}>
-                            
-                            {/* Nút Xóa File - Chỉ hiện khi hover */}
-                            <button 
-                              onClick={() => handleDeleteFile(log.id, fileId)}
-                              className="absolute top-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md transition-colors opacity-0 group-hover:opacity-100"
-                              title="Xóa video này"
-                            >
-                              ✕
-                            </button>
-
-                            <iframe title={`video-${index}`} src={`https://drive.google.com/file/d/${fileId}/preview`} className="absolute top-0 left-0 w-full h-full border-0"></iframe>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      !isManualMark && <div className="text-sm text-red-400 py-6 text-center italic border border-dashed border-red-200 rounded-md bg-white">No video/image uploaded.</div>
-                    )}
-                  </>
-                )}
-              </div>
+        {Object.keys(logsByDate).map(date => (
+          <div key={date} className="mb-8 last:mb-0">
+            {/* Cấu trúc ngăn cách bằng Line và Date */}
+            <div className="flex items-center gap-4 mb-5">
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider bg-white px-3 py-1 rounded-md border border-slate-200 shadow-sm">
+                {date}
+              </h3>
+              <div className="flex-1 h-px bg-slate-200"></div>
             </div>
-          );
-        })}
+
+            <div className="grid gap-5 grid-cols-1 lg:grid-cols-2">
+              {logsByDate[date].map(log => {
+                const evidenceFiles = getEvidenceArray(log.evidence_files);
+                const isArchived = evidenceFiles.includes("ARCHIVED_OFFLINE");
+                const isManualMark = evidenceFiles.includes("MANUAL_MARK_NO_FILE");
+                const driveFiles = evidenceFiles.filter(id => id !== "MANUAL_MARK_NO_FILE" && id !== "ARCHIVED_OFFLINE");
+                const hasEvidence = evidenceFiles.length > 0;
+
+                return (
+                  <div key={log.id} className={`border rounded-xl p-5 flex flex-col transition-all ${hasEvidence ? 'border-slate-200 bg-white shadow-sm hover:shadow' : 'border-red-200 bg-red-50/30 shadow-sm'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-base">{log.employee_name} <span className="text-slate-400 font-medium text-sm">({log.employee_code})</span></h3>
+                        <div className="flex gap-2 mt-2">
+                          <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-semibold border border-slate-200">{new Date(log.work_date).toLocaleDateString('en-GB')}</span>
+                          <span className="bg-red-50 text-red-600 px-2.5 py-1 rounded-md text-xs font-semibold border border-red-100">{log.minutes_late} mins late</span>
+                        </div>
+                      </div>
+                      <div>
+                        {hasEvidence ? (
+                          <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-md text-xs font-bold"><CheckCircleIcon className="w-4 h-4" /> Has Evidence</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-md text-xs font-bold animate-pulse"><ExclamationCircleIcon className="w-4 h-4" /> Missing Video</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1 border-t border-slate-100 pt-4">
+                      
+                      {isArchived ? (
+                        <div className="text-sm text-slate-600 font-medium mb-3 flex items-center gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                          <ArchiveBoxIcon className="w-5 h-5 text-slate-400" />
+                          Evidence has been ZIP archived.
+                        </div>
+                      ) : isManualMark ? (
+                        <div className="text-sm text-emerald-600 font-semibold mb-3 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">✓ Manually verified (No file)</div>
+                      ) : null}
+
+                      {!isArchived && (
+                        <>
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Drive Files</span>
+                            <label className="cursor-pointer bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600 border border-slate-300 text-xs py-1.5 px-3 rounded-md font-semibold transition-colors shadow-sm">
+                              + Update Video
+                              <input type="file" multiple className="hidden" onChange={(e) => handleUpload(Array.from(e.target.files), [log.id])} />
+                            </label>
+                          </div>
+                          
+                          {driveFiles.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-3">
+                              {driveFiles.map((fileId, index) => (
+                                <div key={fileId} className="relative w-full rounded-lg border border-slate-200 bg-slate-100 overflow-hidden shadow-sm flex-col group" style={{ paddingTop: '56.25%' }}>
+                                  <button 
+                                    onClick={() => handleDeleteFile(log.id, fileId)}
+                                    className="absolute top-2 right-2 z-10 bg-red-500/90 hover:bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md transition-all opacity-0 group-hover:opacity-100"
+                                    title="Delete video"
+                                  >✕</button>
+                                  <iframe title={`video-${index}`} src={`https://drive.google.com/file/d/${fileId}/preview`} className="absolute top-0 left-0 w-full h-full border-0"></iframe>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            !isManualMark && <div className="text-sm text-slate-400 py-6 text-center font-medium border border-dashed border-slate-200 rounded-lg bg-slate-50">No evidence video uploaded.</div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
