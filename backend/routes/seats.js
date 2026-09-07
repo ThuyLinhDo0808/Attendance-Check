@@ -2,7 +2,19 @@ const express = require('express');
 const pool = require('../db/pool');
 const router = express.Router();
 
-// Lấy sơ đồ ghế (Hỗ trợ Time-Travel qua query ?as_of=)
+// GET: Fetch dynamic layout coordinates
+router.get('/layout', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT layout_json FROM office_layouts WHERE is_active = TRUE ORDER BY id DESC LIMIT 1'
+    );
+    res.json(rows[0]?.layout_json || { seats: [], tables: [] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET: Fetch seat assignments with Time-Travel support
 router.get('/', async (req, res, next) => {
   try {
     const { as_of } = req.query;
@@ -37,14 +49,13 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// Cập nhật ghế chuẩn SCD2
+// POST: SCD2 Seat Assignment
 router.post('/assign', async (req, res, next) => {
   const client = await pool.connect();
   try {
     const { seat_id, employee_code } = req.body;
     await client.query('BEGIN');
 
-    // Đóng phiên bản cũ của ghế này
     await client.query(
       `UPDATE seat_assignments SET is_current = FALSE, effective_end_date = CURRENT_DATE 
        WHERE seat_id = $1 AND is_current = TRUE`,
@@ -52,14 +63,12 @@ router.post('/assign', async (req, res, next) => {
     );
 
     if (employee_code) {
-       // Đóng phiên bản ghế cũ của nhân viên này (nếu họ đang ngồi chỗ khác)
        await client.query(
           `UPDATE seat_assignments SET is_current = FALSE, effective_end_date = CURRENT_DATE 
            WHERE employee_code = $1 AND is_current = TRUE`,
           [employee_code]
        );
        
-       // Thêm phiên bản mới
        await client.query(
           `INSERT INTO seat_assignments (seat_id, employee_code, effective_start_date, is_current) 
            VALUES ($1, $2, CURRENT_DATE, TRUE)`,
@@ -67,6 +76,32 @@ router.post('/assign', async (req, res, next) => {
        );
     }
 
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// POST: Save new office layout
+router.post('/layout', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { layout_json } = req.body;
+    await client.query('BEGIN');
+    
+    // Deactivate old layouts
+    await client.query('UPDATE office_layouts SET is_active = FALSE WHERE is_active = TRUE');
+    
+    // Insert new layout
+    await client.query(
+      'INSERT INTO office_layouts (layout_json, is_active) VALUES ($1, TRUE)',
+      [layout_json]
+    );
+    
     await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {

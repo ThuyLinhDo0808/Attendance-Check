@@ -21,6 +21,8 @@ import {
 } from '@heroicons/react/24/outline';
 import EvidenceManager from './components/EvidenceManager.jsx';
 import { VideoCameraIcon } from '@heroicons/react/24/outline';
+import MapBuilder from './components/MapBuilder.jsx';
+import { MapIcon } from '@heroicons/react/24/outline';
 
 const TABS = [
   { id: 'qrcode', label: 'QR Check-in', icon: QrCodeIcon },
@@ -29,6 +31,7 @@ const TABS = [
   { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, 
   { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
   { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, 
+  { id: 'map-builder', label: 'Map Builder', icon: MapIcon },
   { id: 'excuses', label: 'Pending Excuses', icon: BellAlertIcon },
   { id: 'evidence', label: 'Evidence Manager', icon: VideoCameraIcon }, 
   { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
@@ -174,6 +177,8 @@ export default function App() {
               }} 
             />
           )}
+
+          {activeTab === 'map-builder' && <MapBuilder />}
 
           {activeTab === 'excuses' && (
             <PendingExcuses onResolved={() => {

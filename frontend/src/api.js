@@ -116,4 +116,24 @@ export const api = {
     }
     return body;
   },
+
+  // Lấy cấu trúc sơ đồ hiện tại (Bàn và tọa độ ghế)
+  getOfficeLayout: async () => {
+    const response = await fetch('/api/seats/layout');
+    if (!response.ok) throw new Error('Failed to fetch office layout');
+    return response.json();
+  },
+
+  // Lưu cấu trúc sơ đồ mới (Dành cho Map Builder kéo thả)
+  saveOfficeLayout: async (layoutJson) => {
+    const response = await fetch('/api/seats/layout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ layout_json: layoutJson })
+    });
+    if (!response.ok) throw new Error('Failed to save office layout');
+    return response.json();
+  }
 };
