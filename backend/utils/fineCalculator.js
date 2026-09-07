@@ -36,6 +36,7 @@ function round2(num) {
  * @param {string} checkInTime
  * @param {{workday_start_time: string, block_minutes: number, fine_per_block_vnd: number}} settings
  */
+
 function calculateLateness(checkInTime, settings) {
   const { workday_start_time, block_minutes, fine_per_block_vnd } = settings;
 
@@ -43,9 +44,8 @@ function calculateLateness(checkInTime, settings) {
   const startMinutes = timeToMinutes(workday_start_time);
 
   const minutesLate = Math.max(0, checkInMinutes - startMinutes);
-  
-  // 1 phút muộn cũng tính là 1 block
-  const fineBlocks = Math.ceil(minutesLate / block_minutes);
+
+  const fineBlocks = Math.round(minutesLate / block_minutes);
   const totalFine = fineBlocks * fine_per_block_vnd;
 
   return {

@@ -79,7 +79,10 @@ export default function Settings({ onSaved }) {
     const blockMinutes = Number(form.block_minutes) || 15;
     const rate = Number(form.fine_per_block_vnd) || 0;
     const minutesLate = 16;
-    const blocks = minutesLate / blockMinutes;
+    
+    // Apply the exact same rounding rule used in the updated backend/preview
+    const blocks = Math.round(minutesLate / blockMinutes);
+    
     return {
       minutesLate,
       blocks,
