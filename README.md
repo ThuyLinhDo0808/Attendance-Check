@@ -86,6 +86,23 @@ The system suports attaching video or image evidence to late check-in records. T
 - **Manual Evidence Overides**: For days where physical recording was missed but the lateness is acknowledged, admins can flag records as "Manually Confirmed". This skips the file upload requirement while satisfying the missing evidence UI warnings.
 - **Console & Progreses Tracking**: To handle large video files natively on the web dashboard, the UI implements a simulated terminal console alongside a real-time progress bar, ensuring the admin always has visibility into the currenet upload state.
 
+### 4. Command Palette & Keyboard-First Navigation
+
+To optimize administrative workflows for speed and minimize mouse dependency, the dashboard implements a data-driven Command Palette architecture:
+
+- **Global Shortcut Listener**: Press `Alt + P` (or any custom combination) from anywhere in the app to summon a centralized search overlay, blocking browser-default behavior without conflicting with input fields.
+- **Data-Driven Scalability**: Shortcuts are managed via a single `SHORTCUT_REGISTRY` array. Adding a new keybind (e.g., triggering a data sync or exporting a report) requires modifying only one line of code; the UI and event listeners generate automatically.
+- **Customizable Keybinds**: Admins can define custom key combinations (e.g., `Alt + 1` for Logger, `Alt + 4` for Excuses) within the Settings tab, stored persistently in localStorage.
+
+### 5. Interactive Office Map Builder
+
+A visual management tool integrated directly into the `AttendanceLogger`:
+
+- **Drag-and-Drop Floor Plan**: Admins can visually design the office layout by adding, positioning, and aligning tables and employee seats on an SVG canvas, snapping precisely to a 10px grid.
+- **Real-Time Visual Indicators**: The live map cross-references `activeEmployeesMap` and the daily `logs` array. Seats dynamically change color based on real-time data: green for on-time, red for late, and grey for unassigned or inactive.
+- **Point-and-Click Attendance**: Instead of searching through dropdowns, clicking an occupied seat on the map automatically populates the employee's ID into the logging form.
+- **Time-Travel Mode**: By selecting a date in the past, the map rebuilds the exact seating chart and attendance statuses for that specific day, providing a visual historical audit.
+
 ## Data visualization
 
 The **Company Analytics** tab includes:

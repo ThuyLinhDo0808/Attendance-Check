@@ -23,6 +23,8 @@ import EvidenceManager from './components/EvidenceManager.jsx';
 import { VideoCameraIcon } from '@heroicons/react/24/outline';
 import MapBuilder from './components/MapBuilder.jsx';
 import { MapIcon } from '@heroicons/react/24/outline';
+import { useShortcuts, SHORTCUT_REGISTRY } from './hooks/useShortcuts';
+import CommandPalette from './components/CommandPalette.jsx';
 
 const TABS = [
   { id: 'qrcode', label: 'QR Check-in', icon: QrCodeIcon },
@@ -44,6 +46,42 @@ export default function App() {
   const [sidebarSettings, setSidebarSettings] = useState(null);
   const [toast, setToast] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const { shortcuts } = useShortcuts();
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+
+      const keys = [];
+      if (e.ctrlKey) keys.push('ctrl');
+      if (e.metaKey) keys.push('meta');
+      if (e.altKey) keys.push('alt');
+      if (e.shiftKey) keys.push('shift');
+      if (!['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+        keys.push(e.key.toLowerCase());
+      }
+      
+      const pressedCombo = keys.join('+');
+
+      // Tìm actionId đang gán với tổ hợp phím này
+      const matchedActionId = Object.keys(shortcuts).find(id => shortcuts[id] === pressedCombo);
+
+      if (matchedActionId) {
+        e.preventDefault();
+        
+        // Truy xuất thông tin lệnh từ kho lưu trữ
+        const actionDef = SHORTCUT_REGISTRY.find(item => item.id === matchedActionId);
+        
+        // Tự động chuyển tab nếu có targetTab
+        if (actionDef && actionDef.targetTab) {
+          setActiveTab(actionDef.targetTab);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [shortcuts]);
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -87,6 +125,9 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
+      
+      <CommandPalette setActiveTab={setActiveTab} />
+
       {/* Sidebar */}
       <aside className="w-64 shrink-0 bg-ledger-950 text-slate-200 flex flex-col">
         <div className="px-6 py-6 border-b border-white/10">
