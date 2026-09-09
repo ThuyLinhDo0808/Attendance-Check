@@ -17,26 +17,41 @@ import {
   UserGroupIcon, 
   Cog6ToothIcon ,
   QrCodeIcon,
-  BellAlertIcon
+  BellAlertIcon,
+  VideoCameraIcon,
+  MapIcon
 } from '@heroicons/react/24/outline';
 import EvidenceManager from './components/EvidenceManager.jsx';
-import { VideoCameraIcon } from '@heroicons/react/24/outline';
 import MapBuilder from './components/MapBuilder.jsx';
-import { MapIcon } from '@heroicons/react/24/outline';
 import { useShortcuts, SHORTCUT_REGISTRY } from './hooks/useShortcuts';
 import CommandPalette from './components/CommandPalette.jsx';
 
-const TABS = [
-  { id: 'qrcode', label: 'QR Check-in', icon: QrCodeIcon },
-  { id: 'logger', label: 'Attendance Logger', icon: ClockIcon },
-  { id: 'analytics', label: 'Company Analytics', icon: PresentationChartBarIcon },
-  { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, 
-  { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
-  { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, 
-  { id: 'map-builder', label: 'Map Builder', icon: MapIcon },
-  { id: 'excuses', label: 'Pending Excuses', icon: BellAlertIcon },
-  { id: 'evidence', label: 'Evidence Manager', icon: VideoCameraIcon }, 
-  { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
+const MENU_GROUPS = [
+  {
+    title: 'Daily Operations',
+    items: [
+      { id: 'qrcode', label: 'QR Check-in', icon: QrCodeIcon },
+      { id: 'logger', label: 'Attendance Logger', icon: ClockIcon },
+      { id: 'excuses', label: 'Pending Excuses', icon: BellAlertIcon },
+      { id: 'evidence', label: 'Evidence Manager', icon: VideoCameraIcon }, 
+    ]
+  },
+  {
+    title: 'Ledger & Analytics',
+    items: [
+      { id: 'analytics', label: 'Company Analytics', icon: PresentationChartBarIcon },
+      { id: 'weekly', label: 'Weekly Report', icon: CalendarDaysIcon }, 
+      { id: 'sheet', label: 'Employee Fine Sheet', icon: TableCellsIcon },
+    ]
+  },
+  {
+    title: 'Workspace & System',
+    items: [
+      { id: 'map-builder', label: 'Map Builder', icon: MapIcon },
+      { id: 'employees', label: 'Employee Management', icon: UserGroupIcon }, 
+      { id: 'settings', label: 'Settings', icon: Cog6ToothIcon },
+    ]
+  }
 ];
 
 export default function App() {
@@ -63,16 +78,11 @@ export default function App() {
       
       const pressedCombo = keys.join('+');
 
-      // Tìm actionId đang gán với tổ hợp phím này
       const matchedActionId = Object.keys(shortcuts).find(id => shortcuts[id] === pressedCombo);
 
       if (matchedActionId) {
         e.preventDefault();
-        
-        // Truy xuất thông tin lệnh từ kho lưu trữ
         const actionDef = SHORTCUT_REGISTRY.find(item => item.id === matchedActionId);
-        
-        // Tự động chuyển tab nếu có targetTab
         if (actionDef && actionDef.targetTab) {
           setActiveTab(actionDef.targetTab);
         }
@@ -98,7 +108,6 @@ export default function App() {
       const rows = await api.getSettings();
       setSidebarSettings(Object.fromEntries(rows.map((r) => [r.key, r.value])));
     } catch {
-      // sidebar just falls back to showing nothing extra; not critical path
     }
   }, []);
 
@@ -128,71 +137,77 @@ export default function App() {
       
       <CommandPalette setActiveTab={setActiveTab} />
 
-      {/* Sidebar */}
-      <aside className="w-64 shrink-0 bg-ledger-950 text-slate-200 flex flex-col">
-        <div className="px-6 py-6 border-b border-white/10">
+      {/* Sidebar được cấu trúc lại */}
+      <aside className="w-64 shrink-0 bg-ledger-950 text-slate-200 flex flex-col shadow-xl z-20">
+        <div className="px-6 py-6 border-b border-white/5">
           <div className="flex items-center gap-2">
             <span className="font-mono-num text-accent text-lg font-bold">
               {sidebarSettings?.workday_start_time || '—'}
             </span>
-            <span className="text-xs uppercase tracking-widest text-slate-400">cutoff</span>
+            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold bg-white/10 px-1.5 py-0.5 rounded">cutoff</span>
           </div>
-          <h1 className="mt-2 text-lg font-bold text-white leading-tight">
-            Attendance &amp; Fine Ledger
+          <h1 className="mt-3 text-lg font-extrabold text-white leading-tight tracking-wide">
+            Attendance<br/><span className="text-accent">&amp;</span> Fine Ledger
           </h1>
-          <p className="text-xs text-slate-400 mt-1">Single-admin internal tool</p>
+          <p className="text-xs text-slate-400 mt-2 font-medium">Single-admin internal tool</p>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                ${
-                  activeTab === tab.id
-                    ? 'bg-accent text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
-                }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-base w-5 text-center" aria-hidden="true">
-                  <tab.icon className="h-5 w-5" />
-                </span>
-                {tab.label}
+        {/* Duyệt qua các nhóm Menu */}
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-8 scrollbar-hide">
+          {MENU_GROUPS.map((group) => (
+            <div key={group.title}>
+              <h3 className="px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">
+                {group.title}
+              </h3>
+              <div className="space-y-1">
+                {group.items.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
+                      ${
+                        activeTab === tab.id
+                          ? 'bg-accent text-white shadow-md shadow-accent/20'
+                          : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <tab.icon className={`h-5 w-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-500'}`} />
+                      {tab.label}
+                    </div>
+                    
+                    {tab.id === 'excuses' && pendingCount > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                        {pendingCount}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
-              
-              {tab.id === 'excuses' && pendingCount > 0 && (
-                <span className="bg-red-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
+            </div>
           ))}
         </nav>
 
-        <div className="px-6 py-4 border-t border-white/10 text-xs text-slate-500">
-          {sidebarSettings ? (
-            <>
-              Rate: {formatVND(sidebarSettings.fine_per_block_vnd)} /{' '}
-              {sidebarSettings.block_minutes}-min block
-            </>
-          ) : (
-            'Loading rate…'
-          )}
-          <br />
-          Fines are proportional — never rounded up.
-          <br />
+        {/* Footer Sidebar */}
+        <div className="px-6 py-5 border-t border-white/5 text-xs text-slate-400 bg-black/10">
+          <div className="font-mono-num mb-1">
+            {sidebarSettings ? (
+              <>Rate: <span className="text-slate-200 font-bold">{formatVND(sidebarSettings.fine_per_block_vnd)}</span> / {sidebarSettings.block_minutes}m</>
+            ) : (
+              'Loading rate…'
+            )}
+          </div>
+          <p className="opacity-70 leading-relaxed">Fines are proportional — never rounded up.</p>
           <button
             onClick={() => setActiveTab('settings')}
-            className="mt-1 text-accent hover:underline"
+            className="mt-2 text-accent font-semibold hover:text-indigo-400 transition-colors"
           >
-            Change in Settings →
+            Open Settings →
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Phần Main Content */}
       <main className="flex-1 min-w-0">
         <div className="max-w-6xl mx-auto px-8 py-8">
           {employeesError && (
@@ -202,10 +217,7 @@ export default function App() {
           )}
 
           {activeTab === 'qrcode' && <AdminQRCode />}
-
-          {activeTab === 'logger' && (
-            <AttendanceLogger employees={employees} onLogged={() => showToast('Attendance logged.')} />
-          )}
+          {activeTab === 'logger' && <AttendanceLogger employees={employees} onLogged={() => showToast('Attendance logged.')} />}
           {activeTab === 'analytics' && <CompanyAnalytics />}
           {activeTab === 'weekly' && <WeeklyReport />}
           {activeTab === 'sheet' && <EmployeeFineSheet />}
@@ -214,30 +226,20 @@ export default function App() {
               employees={employees} 
               onEmployeeAdded={() => {
                 showToast('New employee added.');
-                loadEmployees(); // Reload the employee list immediately
+                loadEmployees(); 
               }} 
             />
           )}
-
           {activeTab === 'map-builder' && <MapBuilder />}
-
-          {activeTab === 'excuses' && (
-            <PendingExcuses onResolved={() => {
+          {activeTab === 'excuses' && <PendingExcuses onResolved={() => {
               showToast('Đã xử lý đơn thành công!');
-              loadPendingCount(); // Cập nhật lại số đếm trên chuông
-            }} />
-          )}
-
+              loadPendingCount(); 
+            }} />}
           {activeTab === 'evidence' && <EvidenceManager />}
-
-          {activeTab === 'settings' && (
-            <Settings
-              onSaved={() => {
+          {activeTab === 'settings' && <Settings onSaved={() => {
                 showToast('Settings updated.');
                 loadSidebarSettings();
-              }}
-            />
-          )}
+              }} />}
         </div>
       </main>
 
