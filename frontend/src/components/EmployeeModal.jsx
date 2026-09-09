@@ -111,47 +111,52 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm anim-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden anim-slide-up border border-slate-200">
+        
         {/* Header Modal */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <h3 className="text-lg font-bold text-slate-900">
-            {data ? `${data.employee.name} (${data.employee.employee_code})` : 'Loading...'}
+        <div className="px-8 py-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+          <h3 className="text-2xl font-black tracking-tight text-slate-900">
+            {data ? `${data.employee.name} ` : 'Loading...'} 
+            {data && <span className="font-mono text-slate-400 text-lg font-semibold ml-2">#{data.employee.employee_code}</span>}
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 font-bold">✕ Đóng</button>
+          <button onClick={onClose} className="text-xs font-bold uppercase tracking-widest bg-white border border-slate-300 text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-md transition-colors shadow-sm">
+             Close
+          </button>
         </div>
 
         {/* Nội dung Modal */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-8">
           {loading && !data ? (
-            <p className="text-center text-slate-500">Đang tải dữ liệu...</p>
+             <div className="flex justify-center items-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>
           ) : error ? (
-            <p className="text-center text-red-500">{error}</p>
+            <p className="text-center text-red-500 font-bold">{error}</p>
           ) : (
             <>
-              {/* Box Thống kê */}
-              <div className="grid grid-cols-4 gap-4 mb-8">
-                <Stat label="Số lần đi muộn" value={data.stats.times_late} emphasize={data.stats.times_late > 0} />
-                <Stat label="Tổng phút muộn" value={`${data.stats.total_minutes_late} min`} emphasize={false} />
-                <Stat label="Số Block phạt" value={formatBlocks(data.stats.total_fine_blocks)} emphasize={false} />
-                <Stat label="Tổng Tiền Phạt" value={formatVNDExact(data.stats.total_fine)} emphasize={data.stats.total_fine > 0} />
+              {/* Box Thống kê - Giao diện Data-Driven */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+                <Stat label="Late" value={data.stats.times_late} emphasize={data.stats.times_late > 0} suffix="times" />
+                <Stat label="Total Minutes Late" value={data.stats.total_minutes_late} emphasize={false} suffix="min" />
+                <Stat label="Fine Blocks" value={formatBlocks(data.stats.total_fine_blocks)} emphasize={false} suffix="blocks" />
+                <Stat label="Total Fine" value={formatVNDExact(data.stats.total_fine)} emphasize={data.stats.total_fine > 0} isMoney />
               </div>
 
               {/* Bảng lịch sử */}
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
-                  <tr>
-                    <th className="px-6 py-3">Date</th>
-                    <th className="px-6 py-3">Check-in Time</th>
-                    <th className="px-6 py-3">Check-out Time</th>
-                    <th className="px-6 py-3">Note</th>
-                    <th className="px-6 py-3 text-center">Exempt</th>
-                    <th className="px-6 py-3 text-right">Minutes Late</th>
-                    <th className="px-6 py-3 text-right">Fine</th>
-                    <th className="px-6 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-widest font-bold border-b-2 border-slate-200">
+                    <tr>
+                        <th className="px-6 py-4">Date</th>
+                        <th className="px-6 py-4 text-center">Check-in</th>
+                        <th className="px-6 py-4 text-center">Check-out</th>
+                        <th className="px-6 py-4">Notes</th>
+                        <th className="px-6 py-4 text-center">Exempt from Fine</th>
+                        <th className="px-6 py-4 text-right">Minutes Late</th>
+                        <th className="px-6 py-4 text-right">Fine Amount</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
                   {data.history.map((h) => {
                     const late = h.minutes_late > 0;
                     const busy = rowBusy === h.id;
@@ -264,8 +269,9 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
                       </React.Fragment>
                     );
                   })}
-                </tbody>
-              </table>
+                    </tbody>
+                </table>
+              </div>
             </>
           )}
         </div>
@@ -274,13 +280,16 @@ export default function EmployeeModal({ employeeCode, onClose, onChanged }) {
   );
 }
 
-function Stat({ label, value, emphasize }) {
+function Stat({ label, value, emphasize, suffix, isMoney }) {
   return (
-    <div>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-base font-mono-num font-bold ${emphasize ? 'text-red-600' : 'text-slate-900'}`}>
-        {value}
-      </p>
+    <div className={`p-5 rounded-xl border ${emphasize ? 'bg-red-50/50 border-red-100' : 'bg-white border-slate-200'}`}>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
+      <div className="flex items-baseline gap-1.5">
+          <p className={`text-3xl font-black tracking-tight ${isMoney ? 'font-mono' : ''} ${emphasize ? 'text-red-600' : 'text-slate-900'}`}>
+            {value}
+          </p>
+          {suffix && <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{suffix}</span>}
+      </div>
     </div>
   );
 }

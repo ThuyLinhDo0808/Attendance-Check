@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ResponsiveContainer,
-  LineChart,
+  ComposedChart,
   Line,
   BarChart,
   Bar,
@@ -9,19 +9,20 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
+  Legend
 } from 'recharts';
 import { api } from '../api';
 import { formatVND, formatBlocks, currentMonthValue, formatMonthLabel } from '../utils/format';
+import { ArrowDownIcon, PresentationChartLineIcon } from '@heroicons/react/24/outline';
 
-const CHART_FINE = '#C2760C'; // matches tailwind fine.DEFAULT
-const CHART_ACCENT = '#4F5FEA'; // matches tailwind accent.DEFAULT
-const CHART_GRID = '#E2E8F0';
+const CHART_FINE = '#ef4444'; // Đỏ cảnh báo cho cột vi phạm
+const CHART_ACCENT = '#4F5FEA'; // Xanh Indigo cho đường tiền phạt
+const CHART_GRID = '#f1f5f9';
 
 const TREND_RANGES = [
-  { label: '3 mo', months: 3 },
-  { label: '6 mo', months: 6 },
-  { label: '12 mo', months: 12 },
+  { label: '3 tháng', months: 3 },
+  { label: '6 tháng', months: 6 },
+  { label: '1 năm', months: 12 },
 ];
 
 export default function CompanyAnalytics() {
@@ -39,66 +40,57 @@ export default function CompanyAnalytics() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    api
-      .getMonthlyAnalytics(month)
-      .then((res) => {
+    api.getMonthlyAnalytics(month).then((res) => {
         if (!cancelled) setData(res);
-      })
-      .catch((err) => {
+      }).catch((err) => {
         if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
+      }).finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [month]);
 
   useEffect(() => {
     let cancelled = false;
     setTrendsLoading(true);
     setTrendsError(null);
-    api
-      .getTrends(trendMonths)
-      .then((res) => {
+    api.getTrends(trendMonths).then((res) => {
         if (!cancelled) setTrends(res);
-      })
-      .catch((err) => {
+      }).catch((err) => {
         if (!cancelled) setTrendsError(err.message);
-      })
-      .finally(() => {
+      }).finally(() => {
         if (!cancelled) setTrendsLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [trendMonths]);
 
   const lateWorkers = data?.leaderboard || [];
   const trendChartData = (trends || []).map((t) => ({
     ...t,
-    monthLabel: formatMonthLabel(t.month).replace(/\s\d{4}$/, ''), // "January" instead of "January 2026" to keep axis compact
+    monthLabel: formatMonthLabel(t.month).replace(/\s\d{4}$/, ''), 
   }));
-  const barChartData = lateWorkers.slice(0, 12); // keep bar chart legible if the roster is large
+  const barChartData = lateWorkers.slice(0, 12); 
 
   return (
-    <div>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="space-y-8 py-2">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Company Analytics</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Aggregate lateness and fine totals for {formatMonthLabel(month)}.
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
+            <PresentationChartLineIcon className="h-8 w-8 text-indigo-600"/>
+            Analytics Dashboard
+          </h2>
+          <p className="text-sm text-slate-500 mt-2 font-medium">
+            Phân tích tổng quan dữ liệu đi muộn và tiền phạt trong tháng {formatMonthLabel(month)}.
           </p>
         </div>
-        <div className="flex items-end gap-3">
+        <div className="flex items-end gap-4 bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm">
           <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">Month</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 ml-1">Kỳ báo cáo</label>
             <input
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono-num font-semibold text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition"
             />
           </div>
           <ExportButtons month={month} />
@@ -106,54 +98,59 @@ export default function CompanyAnalytics() {
       </header>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-fine/30 bg-fine-soft px-4 py-3 text-sm text-fine">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 shadow-sm font-medium">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Loading analytics…</p>
+        <div className="flex justify-center items-center h-40">
+           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
       ) : (
         data && (
           <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            {/* Lưới KPI nổi bật */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <SummaryCard
-                label="Total late check-ins"
+                label="Tổng lượt đi muộn"
                 value={data.total_late_checkins}
-                tone="fine"
+                subtext="lượt vi phạm trong tháng"
+                tone="alert"
               />
               <SummaryCard
-                label="Total cash fines collected"
+                label="Tổng Quỹ Phạt"
                 value={formatVND(data.total_fine_collected)}
-                tone="fine"
+                subtext="tổng cộng từ các block phạt"
+                tone="primary"
                 mono
               />
               <SummaryCard
-                label="Attendance logs recorded"
+                label="Tổng bản ghi hệ thống"
                 value={data.total_logs}
+                subtext="lượt check-in được xử lý"
                 tone="neutral"
               />
             </div>
 
-            {/* Trend charts */}
-            <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-8">
-              <div className="flex items-center justify-between mb-4">
+            {/* Biểu đồ Trục kép (Dual-Axis) */}
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Lateness trend</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Track whether recent policy changes are reducing lateness over time.
+                  <h3 className="text-lg font-bold text-slate-900">Tương quan Vi phạm & Tiền phạt</h3>
+                  <p className="text-sm text-slate-500 mt-1 font-medium">
+                    Theo dõi biến động số lượt đi muộn (Cột đỏ) và Tiền phạt thu được (Đường xanh).
                   </p>
                 </div>
-                <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 shadow-inner">
                   {TREND_RANGES.map((r) => (
                     <button
                       key={r.months}
                       onClick={() => setTrendMonths(r.months)}
-                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${
                         trendMonths === r.months
-                          ? 'bg-accent text-white'
-                          : 'bg-white text-slate-500 hover:bg-slate-50'
+                          ? 'bg-white text-indigo-700 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800'
                       }`}
                     >
                       {r.label}
@@ -162,180 +159,29 @@ export default function CompanyAnalytics() {
                 </div>
               </div>
 
-              {trendsError ? (
-                <p className="text-sm text-fine">{trendsError}</p>
-              ) : trendsLoading ? (
-                <p className="text-sm text-slate-400">Loading trend…</p>
+              {trendsLoading ? (
+                <div className="h-[350px] flex items-center justify-center text-slate-400">Loading trend...</div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">
-                      Late check-ins per month
-                    </p>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={trendChartData} margin={{ left: -20 }}>
-                        <CartesianGrid stroke={CHART_GRID} vertical={false} />
-                        <XAxis
-                          dataKey="monthLabel"
-                          tick={{ fontSize: 11, fill: '#64748B' }}
-                          axisLine={{ stroke: CHART_GRID }}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 11, fill: '#64748B' }}
-                          axisLine={false}
-                          tickLine={false}
-                          allowDecimals={false}
-                        />
-                        <Tooltip
-                          formatter={(value) => [value, 'Late check-ins']}
-                          labelFormatter={(label) => label}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="total_late_checkins"
-                          stroke={CHART_FINE}
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="Late check-ins"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">
-                      Total fines collected per month (VNĐ)
-                    </p>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <LineChart data={trendChartData} margin={{ left: -20 }}>
-                        <CartesianGrid stroke={CHART_GRID} vertical={false} />
-                        <XAxis
-                          dataKey="monthLabel"
-                          tick={{ fontSize: 11, fill: '#64748B' }}
-                          axisLine={{ stroke: CHART_GRID }}
-                          tickLine={false}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 11, fill: '#64748B' }}
-                          axisLine={false}
-                          tickLine={false}
-                          tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
-                        />
-                        <Tooltip formatter={(value) => [formatVND(value), 'Fines collected']} />
-                        <Line
-                          type="monotone"
-                          dataKey="total_fine_collected"
-                          stroke={CHART_ACCENT}
-                          strokeWidth={2}
-                          dot={{ r: 3 }}
-                          name="Fines collected"
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+                <div className="w-full h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={trendChartData} margin={{ top: 20, right: 20, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke={CHART_GRID} vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="monthLabel" tick={{ fontSize: 12, fill: '#64748B', fontWeight: 600 }} axisLine={false} tickLine={false} dy={10} />
+                      
+                      <YAxis yAxisId="left" tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} allowDecimals={false} dx={-10}/>
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)} dx={10}/>
+                      
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '13px', fontWeight: 600, color: '#475569' }} />
+                      
+                      <Bar yAxisId="left" dataKey="total_late_checkins" fill="#fca5a5" name="Lượt đi muộn" radius={[4, 4, 0, 0]} maxBarSize={50} />
+                      <Line yAxisId="right" type="monotone" dataKey="total_fine_collected" stroke={CHART_ACCENT} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 7 }} name="Tiền phạt (VNĐ)" />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
-              )}
-            </section>
-
-            {/* Bar chart: comparison across employees for the selected month */}
-            {barChartData.length > 0 && (
-              <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-8">
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Late employees comparison — {formatMonthLabel(month)}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 mb-4">
-                  Total fine amount by employee, worst first.
-                </p>
-                <ResponsiveContainer width="100%" height={Math.max(220, barChartData.length * 34)}>
-                  <BarChart data={barChartData} layout="vertical" margin={{ left: 10 }}>
-                    <CartesianGrid stroke={CHART_GRID} horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 11, fill: '#64748B' }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={120}
-                      tick={{ fontSize: 11, fill: '#334155' }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip formatter={(value) => [formatVND(value), 'Total fine']} />
-                    <Bar dataKey="total_fine" fill={CHART_FINE} radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </section>
-            )}
-
-            {/* Late workers — the whole point of this dashboard */}
-            <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    Workers who were late this month
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Every employee with at least one late check-in in {formatMonthLabel(month)},
-                    worst first.
-                  </p>
-                </div>
-                <span className="inline-flex items-center rounded-full bg-fine-soft text-fine text-xs font-semibold px-2.5 py-1">
-                  {lateWorkers.length} late this month
-                </span>
-              </div>
-
-              {lateWorkers.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-slate-400 text-center">
-                  No late check-ins recorded for {formatMonthLabel(month)}. Nobody to flag 🎉
-                </p>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-5 py-2.5 font-medium">Employee</th>
-                      <th className="px-5 py-2.5 font-medium">Code</th>
-                      <th className="px-5 py-2.5 font-medium text-right">Times late</th>
-                      <th className="px-5 py-2.5 font-medium text-right">Minutes late</th>
-                      <th className="px-5 py-2.5 font-medium text-right">Fine blocks</th>
-                      <th className="px-5 py-2.5 font-medium text-right">Total fine</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {lateWorkers.map((w) => (
-                      <tr key={w.employee_code} className="bg-fine-soft/40 hover:bg-fine-soft transition-colors">
-                        <td className="px-5 py-3 font-medium text-slate-900">
-                          <span className="inline-flex items-center gap-2">
-                            <span
-                              className="h-1.5 w-1.5 rounded-full bg-fine"
-                              aria-hidden="true"
-                            />
-                            {w.name}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-slate-500 font-mono-num">
-                          {w.employee_code}
-                        </td>
-                        <td className="px-5 py-3 text-right font-mono-num text-fine font-semibold">
-                          {w.times_late}
-                        </td>
-                        <td className="px-5 py-3 text-right font-mono-num text-slate-700">
-                          {w.total_minutes_late} min
-                        </td>
-                        <td className="px-5 py-3 text-right font-mono-num text-slate-700">
-                          {formatBlocks(w.total_fine_blocks)}
-                        </td>
-                        <td className="px-5 py-3 text-right font-mono-num font-semibold text-fine">
-                          {formatVND(w.total_fine)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
               )}
             </section>
           </>
@@ -348,17 +194,17 @@ export default function CompanyAnalytics() {
 function ExportButtons({ month }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 mb-1">Export this month</label>
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 ml-1">Xuất dữ liệu</label>
       <div className="flex gap-2">
         <a
           href={api.exportMonthlyUrl({ month, format: 'csv', report: 'detail' })}
-          className="inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-colors"
         >
           CSV
         </a>
         <a
           href={api.exportMonthlyUrl({ month, format: 'xlsx' })}
-          className="inline-flex items-center px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
         >
           Excel
         </a>
@@ -367,15 +213,28 @@ function ExportButtons({ month }) {
   );
 }
 
-function SummaryCard({ label, value, tone = 'neutral', mono = false }) {
-  const toneClasses =
-    tone === 'fine' ? 'border-fine/20 bg-fine-soft/60' : 'border-slate-200 bg-white';
+function SummaryCard({ label, value, subtext, tone = 'neutral', mono = false }) {
+  const tones = {
+    alert: 'bg-red-50 border-red-100 text-red-900',
+    primary: 'bg-indigo-600 border-indigo-700 text-white shadow-lg shadow-indigo-600/20',
+    neutral: 'bg-white border-slate-200 text-slate-900'
+  };
+  
+  const subtextTones = {
+    alert: 'text-red-500',
+    primary: 'text-indigo-200',
+    neutral: 'text-slate-500'
+  };
+
   return (
-    <div className={`rounded-xl border p-5 shadow-sm ${toneClasses}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-2 text-2xl font-bold text-slate-900 ${mono ? 'font-mono-num' : ''}`}>
-        {value}
-      </p>
+    <div className={`rounded-2xl border p-6 ${tones[tone]} flex flex-col justify-between`}>
+      <p className={`text-xs font-bold uppercase tracking-widest opacity-80 mb-4`}>{label}</p>
+      <div>
+          <p className={`text-4xl font-black tracking-tight ${mono ? 'font-mono-num' : ''}`}>
+            {value}
+          </p>
+          <p className={`text-xs font-semibold mt-2 ${subtextTones[tone]}`}>{subtext}</p>
+      </div>
     </div>
   );
 }

@@ -101,162 +101,129 @@ export default function LateWorkersPanel({ refreshKey, onDataChanged }) {
   const isToday = date === todayISO();
 
   return (
-    <section className="bg-white rounded-xl border border-fine/20 shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+    <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-fine" aria-hidden="true" />
-            Late {isToday ? 'today' : 'on this day'}
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${isToday ? 'bg-red-500 animate-pulse' : 'bg-slate-400'}`} aria-hidden="true" />
+            Late Employees {isToday ? 'Today' : 'on this date'}
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Every logged check-in past 08:30 on the selected date. Spot a mistake? Fix it right
-            here.
+          <p className="text-xs font-medium text-slate-500 mt-1">
+            Edit or delete incorrect attendance logs directly here.
           </p>
         </div>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
-        />
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-slate-300 shadow-sm">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</span>
+            <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="text-xs font-mono font-bold text-slate-700 outline-none bg-transparent cursor-pointer"
+            />
+        </div>
       </div>
 
       {rowError && (
-        <div className="mx-5 mt-3 rounded-lg border border-fine/30 bg-fine-soft px-3 py-2 text-xs text-fine">
+        <div className="mx-6 mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700 shadow-sm">
           {rowError}
         </div>
       )}
 
       {loading ? (
-        <p className="px-5 py-6 text-sm text-slate-400">Loading…</p>
+        <div className="flex justify-center items-center h-32"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div></div>
       ) : error ? (
-        <p className="px-5 py-6 text-sm text-fine">{error}</p>
+        <p className="px-6 py-8 text-sm font-bold text-red-500">{error}</p>
       ) : logs.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-slate-400 text-center">
-          No late check-ins logged for this date yet.
+        <p className="px-6 py-12 text-sm font-medium text-slate-400 text-center bg-slate-50 border border-dashed border-slate-200 m-6 rounded-xl">
+          No late employees found for this date.
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
-          {logs.map((log) => {
-            const isEditing = editingId === log.id;
-            const busy = rowBusy === log.id;
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+                <thead className="bg-white border-b-2 border-slate-100 text-xs uppercase tracking-wider text-slate-400">
+                    <tr>
+                        <th className="px-6 py-3 font-bold">Employee</th>
+                        <th className="px-6 py-3 font-bold text-center">Check-in Time</th>
+                        <th className="px-6 py-3 font-bold text-center">Log Update</th>
+                        <th className="px-6 py-3 font-bold text-right">Total Fine</th>
+                        <th className="px-6 py-3 font-bold text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                {logs.map((log) => {
+                    const isEditing = editingId === log.id;
+                    const busy = rowBusy === log.id;
 
-            if (isEditing) {
-              return (
-                <li key={log.id} className="px-5 py-3 bg-accent-soft/50">
-                  <p className="text-sm font-medium text-slate-900 mb-2">
-                    {log.employee_name}{' '}
-                    <span className="text-slate-400 font-normal font-mono-num text-xs">
-                      {log.employee_code}
-                    </span>
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="text-xs text-slate-500">
-                      Check-in
-                      <input
-                        type="time"
-                        value={draft.check_in_time}
-                        onChange={(e) =>
-                          setDraft((d) => ({ ...d, check_in_time: e.target.value }))
-                        }
-                        disabled={draft.is_exempt} // Khoá ô nếu đã chọn exempt
-                        className="block mt-0.5 w-24 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50 disabled:bg-slate-100"
-                      />
-                    </label>
-                    <label className="text-xs text-slate-500">
-                      Check-out
-                      <input
-                        type="time"
-                        value={draft.check_out_time}
-                        onChange={(e) =>
-                          setDraft((d) => ({ ...d, check_out_time: e.target.value }))
-                        }
-                        className="block mt-0.5 w-24 rounded-md border border-slate-300 px-2 py-1 text-sm font-mono-num focus:border-accent focus:ring-1 focus:ring-accent"
-                      />
-                    </label>
-                    
-                    {/* Checkbox Exempt */}
-                    <label className="text-xs font-medium text-slate-600 flex items-center gap-1.5 self-end mb-1 mt-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={draft.is_exempt}
-                        onChange={(e) => setDraft(d => ({
-                          ...d,
-                          is_exempt: e.target.checked,
-                          check_in_time: e.target.checked ? '' : d.check_in_time // Xoá giờ check-in nếu chọn exempt
-                        }))}
-                        className="h-3.5 w-3.5 rounded border-slate-300 text-accent focus:ring-accent"
-                      />
-                      Exempt (No fine)
-                    </label>
+                    if (isEditing) {
+                    return (
+                        <tr key={log.id} className="bg-indigo-50/30">
+                            <td className="px-6 py-4">
+                                <p className="text-sm font-bold text-slate-900">{log.employee_name}</p>
+                                <p className="text-xs text-slate-500 font-mono mt-0.5">{log.employee_code}</p>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                                <input
+                                    type="time"
+                                    value={draft.check_in_time}
+                                    onChange={(e) => setDraft((d) => ({ ...d, check_in_time: e.target.value }))}
+                                    disabled={draft.is_exempt}
+                                    className="w-24 rounded-md border border-slate-300 px-2 py-1.5 text-sm font-mono focus:border-indigo-500 outline-none disabled:bg-slate-100 disabled:text-slate-400 mx-auto block"
+                                />
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                                <label className="text-xs font-bold text-slate-600 flex items-center justify-center gap-1.5 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={draft.is_exempt}
+                                    onChange={(e) => setDraft(d => ({ ...d, is_exempt: e.target.checked, check_in_time: e.target.checked ? '' : d.check_in_time }))}
+                                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                Exempt Status
+                                </label>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Editing...</span>
+                            </td>
+                            <td className="px-6 py-4 text-right whitespace-nowrap space-x-2">
+                                <button onClick={() => saveEdit(log)} disabled={busy} className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-3 py-1.5 disabled:opacity-50 shadow-sm transition">
+                                    Save
+                                </button>
+                                <button onClick={cancelEdit} disabled={busy} className="text-xs font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 px-3 py-1.5 rounded-md shadow-sm transition">
+                                    Cancel
+                                </button>
+                            </td>
+                        </tr>
+                    );
+                    }
 
-                    <div className="flex items-end gap-1.5 ml-auto">
-                      <button
-                        onClick={() => saveEdit(log)}
-                        disabled={busy}
-                        className="text-xs font-semibold text-white bg-accent hover:bg-indigo-600 rounded px-2.5 py-1.5 disabled:opacity-50"
-                      >
-                        {busy ? 'Saving…' : 'Save'}
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        disabled={busy}
-                        className="text-xs font-medium text-slate-500 hover:text-slate-800 px-2 py-1.5"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </li>
-              );
-            }
-
-            return (
-              <li
-                key={log.id}
-                className="px-5 py-3 flex items-center justify-between gap-3 bg-fine-soft/40 group"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">
-                    {log.employee_name}{' '}
-                    <span className="text-slate-400 font-normal font-mono-num text-xs">
-                      {log.employee_code}
-                    </span>
-                  </p>
-                  <p className="text-xs text-slate-500 font-mono-num mt-0.5">
-                    Checked in {formatTime(log.check_in_time)} · {log.minutes_late} min late
-                  </p>
-                </div>
-                <div className="text-right shrink-0 flex items-center gap-3">
-                  <div>
-                    <p className="text-sm font-mono-num font-semibold text-fine">
-                      {formatVNDExact(log.total_fine)}
-                    </p>
-                    <p className="text-xs text-slate-400 font-mono-num">
-                      {formatBlocks(log.fine_blocks)} blocks
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <button
-                      onClick={() => startEdit(log)}
-                      disabled={busy}
-                      className="text-xs font-medium text-accent hover:underline disabled:opacity-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteLog(log)}
-                      disabled={busy}
-                      className="text-xs font-medium text-slate-400 hover:text-fine hover:underline disabled:opacity-50"
-                    >
-                      {busy ? '…' : 'Delete'}
-                    </button>
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    return (
+                    <tr key={log.id} className="hover:bg-red-50/30 transition-colors group">
+                        <td className="px-6 py-4">
+                            <p className="text-sm font-bold text-slate-900">{log.employee_name}</p>
+                            <p className="text-xs text-slate-500 font-mono mt-0.5">{log.employee_code}</p>
+                        </td>
+                        <td className="px-6 py-4 text-center font-mono font-bold text-slate-700">
+                            {formatTime(log.check_in_time)} <span className="text-red-500 text-[11px] ml-1">({log.minutes_late}m late)</span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                            {log.is_exempt ? <span className="bg-indigo-50 text-indigo-700 font-bold text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-indigo-200">Exempt</span> : <span className="text-slate-300">-</span>}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                            <p className="text-sm font-mono font-black text-red-600">{formatVNDExact(log.total_fine)}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{formatBlocks(log.fine_blocks)} blocks</p>
+                        </td>
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity space-x-3">
+                                <button onClick={() => startEdit(log)} disabled={busy} className="text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 underline">Edit</button>
+                                <button onClick={() => deleteLog(log)} disabled={busy} className="text-xs font-bold text-red-500 hover:text-red-700 disabled:opacity-50 underline">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                    );
+                })}
+                </tbody>
+            </table>
+        </div>
       )}
     </section>
   );
