@@ -1,6 +1,12 @@
 const express = require('express');
 const pool = require('../db/pool');
+const multer = require('multer'); 
+const { spawn } = require('child_process'); 
+const path = require('path');
+const fs = require('fs');
 const router = express.Router();
+
+const upload = multer({ dest: 'uploads/temp_blueprints/' });
 
 // GET: Fetch dynamic layout coordinates
 router.get('/layout', async (req, res, next) => {
@@ -110,6 +116,51 @@ router.post('/layout', async (req, res, next) => {
   } finally {
     client.release();
   }
+});
+
+// Gọi AI model để phân tích ảnh blueprint và trả về tọa độ ghế và bàn
+router.post('/analyze-blueprint', upload.single('blueprint'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No blueprint image provided.' });
+  }
+
+  const imagePath = path.resolve(req.file.path);
+  // Đường dẫn đến file script Python sẽ tạo ở Bước 4
+  const pythonScriptPath = path.resolve(__dirname, '../scripts/sam_analyzer.py'); 
+
+  // Khởi tạo process chạy Python
+  const pythonProcess = spawn('python', [pythonScriptPath, imagePath]);
+
+  let dataString = '';
+  let errorString = '';
+
+  // Nhận dữ liệu từ Python
+  pythonProcess.stdout.on('data', (data) => {
+    dataString += data.toString();
+  });
+
+  // Ghi nhận lỗi từ Python nếu có
+  pythonProcess.stderr.on('data', (data) => {
+    errorString += data.toString();
+  });
+
+  // Khi xử lý xong
+  pythonProcess.on('close', (code) => {
+    // Xóa file ảnh tạm để tiết kiệm dung lượng
+    fs.unlink(imagePath, () => {});
+
+    if (code !== 0) {
+      console.error(`Python Error: ${errorString}`);
+      return res.status(500).json({ error: 'Vision model processing failed.' });
+    }
+
+    try {
+      const layoutData = JSON.parse(dataString);
+      res.json(layoutData);
+    } catch (err) {
+      res.status(500).json({ error: 'Invalid coordinate data returned from model.' });
+    }
+  });
 });
 
 module.exports = router;
