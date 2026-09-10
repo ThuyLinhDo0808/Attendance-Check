@@ -25,6 +25,7 @@ export default function EvidenceManager() {
   
   const [uploadLogs, setUploadLogs] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [cardUploadStatus, setCardUploadStatus] = useState({});
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -160,6 +161,51 @@ export default function EvidenceManager() {
       setUploadLogs(prev => [...prev, `❌ Error: ${err.message}`]);
       setIsUploading(false);
     } 
+  };
+
+  const handleIndividualUpload = async (files, logId) => {
+    if (files.length === 0 || files.length > 5) return alert("Please select between 1 and 5 files!");
+    
+    // Đặt trạng thái thẻ thành đang tải lên
+    setCardUploadStatus(prev => ({
+      ...prev,
+      [logId]: { status: 'uploading', message: 'Uploading...' }
+    }));
+
+    const formData = new FormData();
+    files.forEach(file => formData.append('media', file));
+    formData.append('log_ids', JSON.stringify([logId])); 
+
+    const targetLog = logs.find(l => l.id === logId);
+    const dateString = targetLog ? new Date(targetLog.work_date).toLocaleDateString('vi-VN') : 'Evidence';
+    formData.append('custom_name', dateString);
+
+    try {
+      await api.uploadEvidence(formData);
+      
+      // Thành công: Hiển thị thông báo xanh
+      setCardUploadStatus(prev => ({
+        ...prev,
+        [logId]: { status: 'success', message: 'Upload successful!' }
+      }));
+
+      // Tự động xóa thông báo và tải lại danh sách sau 2 giây
+      setTimeout(() => {
+        setCardUploadStatus(prev => {
+          const newState = { ...prev };
+          delete newState[logId];
+          return newState;
+        });
+        fetchLateLogs();
+      }, 2000);
+      
+    } catch (err) {
+      // Thất bại: Hiển thị lỗi đỏ
+      setCardUploadStatus(prev => ({
+        ...prev,
+        [logId]: { status: 'error', message: err.message || 'Upload failed.' }
+      }));
+    }
   };
 
   // 3. Filter và Sorting logic
@@ -419,10 +465,32 @@ export default function EvidenceManager() {
                         <>
                           <div className="mb-3 flex items-center justify-between">
                             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Drive Files</span>
-                            <label className="cursor-pointer bg-white text-slate-600 hover:bg-slate-50 hover:text-blue-600 border border-slate-300 text-xs py-1.5 px-3 rounded-md font-semibold transition-colors shadow-sm">
-                              + Update Video
-                              <input type="file" multiple className="hidden" onChange={(e) => handleUpload(Array.from(e.target.files), [log.id])} />
-                            </label>
+                            
+                            <div className="flex items-center gap-2">
+                              {/* Hiển thị thông báo trạng thái */}
+                              {cardUploadStatus[log.id]?.status === 'error' && (
+                                <span className="text-[11px] text-red-600 font-semibold bg-red-50 px-2 py-1 rounded border border-red-100 max-w-[150px] truncate" title={cardUploadStatus[log.id].message}>
+                                  {cardUploadStatus[log.id].message}
+                                </span>
+                              )}
+                              {cardUploadStatus[log.id]?.status === 'success' && (
+                                <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
+                                  {cardUploadStatus[log.id].message}
+                                </span>
+                              )}
+
+                              <label className={`cursor-pointer bg-white text-slate-600 border border-slate-300 text-xs py-1.5 px-3 rounded-md font-semibold transition-colors shadow-sm ${cardUploadStatus[log.id]?.status === 'uploading' ? 'opacity-50 cursor-wait' : 'hover:bg-slate-50 hover:text-blue-600'}`}>
+                                {cardUploadStatus[log.id]?.status === 'uploading' ? 'Uploading...' : '+ Update Video'}
+                                <input 
+                                  type="file" 
+                                  multiple 
+                                  className="hidden" 
+                                  disabled={cardUploadStatus[log.id]?.status === 'uploading'}
+                                  onClick={(e) => (e.target.value = null)}
+                                  onChange={(e) => handleIndividualUpload(Array.from(e.target.files), log.id)} 
+                                />
+                              </label>
+                            </div>
                           </div>
                           
                           {driveFiles.length > 0 ? (
