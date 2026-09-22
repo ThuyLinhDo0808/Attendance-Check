@@ -21,12 +21,16 @@ const MapLegend = () => (
     </div>
 );
 
-export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employees = [], isEditMode = false }) {
+export default function LiveOfficeMap({ date, onSeatClick, onBatchSelect, selectedCode, employees = [], isEditMode = false }) {
   const [logs, setLogs] = useState([]);
   const [layout, setLayout] = useState({ seats: [], tables: [] });
   const [loading, setLoading] = useState(false);
   const [seatAssignments, setSeatAssignments] = useState({});
   const [modalConfig, setModalConfig] = useState({ isOpen: false, seat: null });
+
+  // State bật/tắt chế độ chọn nhiều và danh sách ghế được chọn
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [selectedSeatIds, setSelectedSeatIds] = useState([]);
 
   const activeEmployeesMap = useMemo(() => {
     const map = {};
@@ -44,7 +48,7 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
       const [logsData, seatsData, layoutData] = await Promise.all([
         date ? api.getAttendanceLogs({ date, lateOnly: false }) : Promise.resolve([]),
         api.getSeats(date),
-        api.getOfficeLayout() // Mới thêm vào
+        api.getOfficeLayout()
       ]);
       
       setLogs(logsData);
@@ -55,7 +59,6 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
         assignmentMap[seat.seat_id] = seat.employee_code;
       });
       setSeatAssignments(assignmentMap);
-      
     } catch (err) {
       console.error("Error loading map data:", err);
     } finally {
@@ -66,6 +69,16 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
   useEffect(() => {
     fetchMapData();
   }, [fetchMapData]);
+
+  // Khi danh sách ghế thay đổi trong chế độ multi-select, map ra danh sách employee_code tương ứng để truyền lên cha
+  useEffect(() => {
+    if (onBatchSelect) {
+      const codes = selectedSeatIds
+        .map(id => seatAssignments[id])
+        .filter(Boolean);
+      onBatchSelect(codes);
+    }
+  }, [selectedSeatIds, seatAssignments, onBatchSelect]);
 
   const attendanceMap = useMemo(() => {
     const map = {};
@@ -79,7 +92,8 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
     return map;
   }, [logs]);
 
-  const getSeatColor = (code, isOccupied) => {
+  const getSeatColor = (seatId, code, isOccupied) => {
+    if (selectedSeatIds.includes(seatId)) return '#4F5FEA';
     if (code && selectedCode && selectedCode === code) return '#4F5FEA';
     if (!isOccupied) return '#f1f5f9';
     
@@ -94,6 +108,13 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
         isOpen: true, 
         seat: { id: seatId, currentEmpCode } 
       });
+      return;
+    }
+
+    if (isMultiSelectMode) {
+      setSelectedSeatIds(prev => 
+        prev.includes(seatId) ? prev.filter(id => id !== seatId) : [...prev, seatId]
+      );
     } else {
       if (currentEmpCode && onSeatClick) {
         onSeatClick(currentEmpCode);
@@ -101,17 +122,32 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
     }
   };
 
-  const handleSaveAssignment = async (seatId, newEmpCode) => {
-    await api.assignSeat(seatId, newEmpCode);
-    await fetchMapData(); 
-  };
-
   return (
     <div className='flex flex-col h-full'>
+      {/* Thanh điều khiển Multi-select */}
+      <div className="px-4 py-2.5 flex justify-between items-center bg-slate-50 border-b border-slate-100 mx-4 rounded-t-xl">
+        <div className="flex items-center gap-3">
+          <button 
+            type="button"
+            onClick={() => {
+              setIsMultiSelectMode(!isMultiSelectMode);
+              setSelectedSeatIds([]);
+              if (onBatchSelect) onBatchSelect([]);
+            }}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${isMultiSelectMode ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'}`}
+          >
+            {isMultiSelectMode ? '✓ Đang bật Chọn nhiều' : 'Bật chế độ Chọn nhiều'}
+          </button>
+          {isMultiSelectMode && (
+            <span className="text-xs font-medium text-slate-500">Đã chọn: <strong className="text-indigo-600">{selectedSeatIds.length}</strong> ghế</span>
+          )}
+        </div>
+      </div>
+
       <div className="p-4 flex-1 overflow-x-auto relative flex justify-center items-center">
         {loading && (
           <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 rounded-xl gap-2 text-indigo-600">
-            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full anim-spin"></div>
+            <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
             <span className="text-xs font-semibold">Updating...</span>
           </div>
         )}
@@ -126,7 +162,6 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
             </pattern>
           </defs>
 
-          {/* Bàn được render động từ CSDL */}
           <g filter="url(#softShadow)">
             {layout.tables.map(table => (
               <rect 
@@ -143,14 +178,13 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
             ))}
           </g>
 
-          {/* Ghế được render động từ CSDL */}
           {layout.seats.map((seat) => {
             const empCode = seatAssignments[seat.id];
             const empInfo = empCode ? activeEmployeesMap[empCode] : null;
             const isOccupied = !!empInfo;
             
-            const isSelected = selectedCode === empCode;
-            const seatColor = getSeatColor(empCode, isOccupied);
+            const isSelected = selectedSeatIds.includes(seat.id) || selectedCode === empCode;
+            const seatColor = getSeatColor(seat.id, empCode, isOccupied);
             const displayName = isOccupied ? getShortName(empInfo.name) : 'UNASSIGNED';
             const status = attendanceMap[empCode];
 
@@ -158,7 +192,7 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
               <g 
                 key={seat.id} 
                 onClick={() => handleSeatInteract(seat.id, empCode)}
-                className={`transition-all duration-200 origin-center ${isOccupied || isEditMode ? 'cursor-pointer hover:scale-110' : 'opacity-40'}`}
+                className={`transition-all duration-200 origin-center cursor-pointer hover:scale-110`}
                 style={{ transformOrigin: `${seat.x}px ${seat.y}px` }}
               >
                 <title>
@@ -187,7 +221,7 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
                   filter={isOccupied ? "url(#softShadow)" : ""} 
                 />
 
-                {isOccupied && status && (
+                {isOccupied && status && !isSelected && (
                     <circle cx={seat.x + 8} cy={seat.y - 8} r="4" fill={status.isLate ? '#ef4444' : '#22c55e'} stroke="white" strokeWidth="1"/>
                 )}
                 
@@ -215,7 +249,10 @@ export default function LiveOfficeMap({ date, onSeatClick, selectedCode, employe
         onClose={() => setModalConfig({ isOpen: false, seat: null })}
         seat={modalConfig.seat}
         employees={employees}
-        onSave={handleSaveAssignment}
+        onSave={async (seatId, newEmpCode) => {
+          await api.assignState(seatId, newEmpCode);
+          await fetchMapData(); 
+        }}
       />
     </div>
   );

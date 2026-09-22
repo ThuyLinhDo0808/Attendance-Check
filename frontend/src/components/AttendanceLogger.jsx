@@ -59,6 +59,41 @@ export default function AttendanceLogger({ employees, onLogged }) {
   const [result, setResult] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [settings, setSettings] = useState(null);
+  const [selectedBatchCodes, setSelectedBatchCodes] = useState([]);
+
+  // Ghi nhận hàng loạt (Ví dụ: Ghi nhận nghỉ / miễn phạt hàng loạt)
+async function handleBatchCommit(e) {
+  e.preventDefault();
+  if (selectedBatchCodes.length === 0) {
+    setError('Vui lòng chọn ít nhất một nhân viên trên bản đồ.');
+    return;
+  }
+
+  setSubmitting(true);
+  setError(null);
+  try {
+    // Vòng lặp gọi API logAttendance với trạng thái is_exempt = true hoặc ghi nhận nghỉ cho từng nhân viên
+    for (const code of selectedBatchCodes) {
+      await api.logAttendance({
+        employee_code: code,
+        work_date: form.work_date,
+        check_in_time: null,
+        check_out_time: null,
+        note: form.note,
+        is_exempt: true,
+      });
+    }
+
+    setRefreshKey((k) => k + 1);
+    setSelectedBatchCodes([]);
+    setForm((f) => ({ ...f, note: '' }));
+    onLogged?.();
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setSubmitting(false);
+  }
+}
 
   useEffect(() => {
     api.getSettings().then((rows) => {
@@ -168,6 +203,7 @@ export default function AttendanceLogger({ employees, onLogged }) {
             date={form.work_date} 
             selectedCode={form.employee_code} 
             onSeatClick={(code) => update('employee_code', code)} 
+            onBatchSelect={(codes) => setSelectedBatchCodes(codes)}
             employees={employees}
           />
         </div>
@@ -297,13 +333,24 @@ export default function AttendanceLogger({ employees, onLogged }) {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm"
-          >
-            {submitting ? 'Recording Log…' : 'Commit Attendance Record'}
-          </button>
+          {selectedBatchCodes.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleBatchCommit}
+              disabled={submitting}
+              className="w-full py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm"
+            >
+              {submitting ? 'Recording Batch…' : `Commit Batch (${selectedBatchCodes.length})`}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 transition shadow-sm"
+            >
+              {submitting ? 'Recording Log…' : 'Commit Attendance Record'}
+            </button>
+          )}
         </form>
 
         {/* Right Sidebar: Projection & Last Recorded Result */}

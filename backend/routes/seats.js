@@ -189,4 +189,49 @@ router.post('/analyze-blueprint', upload.single('blueprint'), (req, res) => {
   });
 });
 
+// POST: Batch SCD2 Seat Assignment
+router.post('/batch-assign', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { assignments } = req.body; // [{ seat_id, employee_code }, ...]
+    if (!Array.isArray(assignments)) {
+      return res.status(400).json({ error: 'Invalid assignments format, expected an array.' });
+    }
+
+    await client.query('BEGIN');
+
+    for (const item of assignments) {
+      const { seat_id, employee_code } = item;
+
+      await client.query(
+        `UPDATE seat_assignments SET is_current = FALSE, effective_end_date = CURRENT_DATE 
+         WHERE seat_id = $1 AND is_current = TRUE`,
+        [seat_id]
+      );
+
+      if (employee_code) {
+         await client.query(
+            `UPDATE seat_assignments SET is_current = FALSE, effective_end_date = CURRENT_DATE 
+             WHERE employee_code = $1 AND is_current = TRUE`,
+            [employee_code]
+         );
+         
+         await client.query(
+            `INSERT INTO seat_assignments (seat_id, employee_code, effective_start_date, is_current) 
+             VALUES ($1, $2, CURRENT_DATE, TRUE)`,
+            [seat_id, employee_code]
+         );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
 module.exports = router;
