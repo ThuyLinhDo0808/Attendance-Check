@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
-import { formatVNDExact, formatBlocks, formatTime } from '../utils/format';
+import { formatVNDExact, formatBlocks, formatTime, localDateValue } from '../utils/format';
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateValue();
 }
 
 /**
