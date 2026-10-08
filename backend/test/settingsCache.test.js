@@ -72,3 +72,11 @@ test('getSettingsAt looks up the version in effect at that time, bypassing the c
   // The live cache is untouched.
   assert.equal((await getSettings()).fine_per_block_vnd, 20000);
 });
+
+test('schema.sql seeds the same defaults: 08:30 cutoff, 15-minute blocks, 10,000 VND', () => {
+  const fs = require('node:fs');
+  const schema = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
+  assert.match(schema, /\('workday_start_time',\s*'08:30'/);
+  assert.match(schema, /\('block_minutes',\s*'15'/);
+  assert.match(schema, /\('fine_per_block_vnd',\s*'10000'/);
+});
