@@ -250,7 +250,7 @@ export default function LiveOfficeMap({ date, onSeatClick, onBatchSelect, select
         seat={modalConfig.seat}
         employees={employees}
         onSave={async (seatId, newEmpCode) => {
-          await api.assignState(seatId, newEmpCode);
+          await api.assignSeat(seatId, newEmpCode);
           await fetchMapData(); 
         }}
       />

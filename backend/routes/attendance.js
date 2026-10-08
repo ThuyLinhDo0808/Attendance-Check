@@ -3,7 +3,7 @@ const pool = require('../db/pool');
 const { calculateLateness } = require('../utils/fineCalculator');
 const { getSettings } = require('../utils/settingsCache');
 const { triggerAutoSync } = require('../utils/googleSheetsSync');
-const { resolveActingCode } = require('../utils/auth');
+const { todayDate, currentTime } = require('../utils/clock');
 const multer = require('multer');
 const fs = require('fs');
 const { uploadFileToDrive, getOrCreateFolder, getFilesInFolder, zipAndUploadToDrive, deleteDriveFiles } = require('../utils/googleDriveService');
@@ -210,8 +210,8 @@ router.post('/checkin', async (req, res, next) => {
     }
 
     const now = new Date();
-    const work_date = now.toLocaleDateString('en-CA');
-    const check_in_time = now.toTimeString().slice(0, 8);
+    const work_date = todayDate(now);
+    const check_in_time = currentTime(now);
 
     const empCheck = await pool.query(
       'SELECT id FROM employees WHERE employee_code = $1 AND is_current = TRUE',
@@ -243,7 +243,14 @@ router.post('/checkin', async (req, res, next) => {
          check_in_time = LEAST(attendance_logs.check_in_time, EXCLUDED.check_in_time),
          minutes_late = EXCLUDED.minutes_late,
          note = EXCLUDED.note,
-         updated_at = NOW()`
+         updated_at = NOW()
+       -- A second scan later in the day must not overwrite the earlier,
+       -- real check-in (its lateness/note), nor a day the admin already
+       -- marked exempt. Only an earlier time, or a day that was logged
+       -- without a check-in time, is taken.
+       WHERE NOT attendance_logs.is_exempt
+         AND (attendance_logs.check_in_time IS NULL
+              OR EXCLUDED.check_in_time < attendance_logs.check_in_time)`
       ,
       [
         employeeId,
@@ -272,7 +279,7 @@ router.post('/excuse', async (req, res, next) => {
 
     if (!employee_code) return res.status(403).json({ success: false, message: 'Bạn chỉ có thể gửi giải trình cho chính mình.' });
     const safeReason = reason || ''; 
-    const work_date = new Date().toLocaleDateString('en-CA');
+    const work_date = todayDate();
 
     const lowerReason = safeReason.toLowerCase();
     const isUrgent = lowerReason.includes('ngập') || lowerReason.includes('hỏng xe') || lowerReason.includes('tai nạn') || lowerReason.includes('ốm');
@@ -313,76 +320,80 @@ router.get('/pending-excuses', async (req, res, next) => {
  * - REJECTED: LÚC NÀY MỚI TÍNH TOÁN VÀ ÁP ĐẶT TIỀN PHẠT DỰA TRÊN GIỜ CHECK-IN THỰC TẾ.
  */
 router.post('/resolve-excuse', async (req, res, next) => {
+  const { request_id, status } = req.body;
+  if (!request_id || !['APPROVED', 'REJECTED'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'request_id and status (APPROVED or REJECTED) are required' });
+  }
+
   const client = await pool.connect();
   try {
-    const { request_id, status } = req.body;
-    
     await client.query('BEGIN');
 
+    // Only a still-PENDING request can be resolved, so a double click or
+    // a second admin tab can't apply (or flip) the decision twice.
     const { rows } = await client.query(
-      `UPDATE excuse_requests SET status = $1 WHERE id = $2 RETURNING employee_code, work_date, reason`,
+      `UPDATE excuse_requests SET status = $1 WHERE id = $2 AND status = 'PENDING'
+       RETURNING employee_code, work_date, reason`,
       [status, request_id]
     );
 
-    if (rows.length > 0) {
-      const reqData = rows[0];
-      
-      const empRes = await client.query('SELECT id FROM employees WHERE employee_code = $1 AND is_current = TRUE', [reqData.employee_code]);
-      
-      if (empRes.rows.length > 0) {
-        const employeeId = empRes.rows[0].id;
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Excuse request not found or already resolved' });
+    }
 
-        if (status === 'APPROVED') {
-          // 🟢 DUYỆT: Miễn trừ hoàn toàn, đưa phút muộn và tiền phạt về 0, bật is_exempt = TRUE
-          await client.query(
-            `UPDATE attendance_logs 
-             SET is_exempt = TRUE, 
-                 minutes_late = 0,
-                 fine_blocks = 0,
-                 total_fine = 0,
-                 note = $1, 
-                 updated_at = NOW()
-             WHERE employee_code = $2 AND work_date = $3`,
-            [`[Đã duyệt] ${reqData.reason}`, reqData.employee_code, reqData.work_date]
-          );
-        } else if (status === 'REJECTED') {
-          // 🔴 TỪ CHỐI: Lấy số phút muộn đã lưu lúc check-in, tính toán ra tiền phạt chính thức và gập phạt xuống
-          const logCheck = await client.query(
-            `SELECT check_in_time FROM attendance_logs WHERE employee_code = $1 AND work_date = $2`,
-            [reqData.employee_code, reqData.work_date]
-          );
+    const reqData = rows[0];
 
-          if (logCheck.rows.length > 0 && logCheck.rows[0].check_in_time) {
-            const settings = await getSettings();
-            const computed = calculateLateness(logCheck.rows[0].check_in_time, settings);
+    if (status === 'APPROVED') {
+      // 🟢 DUYỆT: Miễn trừ hoàn toàn, đưa phút muộn và tiền phạt về 0, bật is_exempt = TRUE
+      await client.query(
+        `UPDATE attendance_logs 
+         SET is_exempt = TRUE, 
+             minutes_late = 0,
+             fine_blocks = 0,
+             total_fine = 0,
+             note = $1, 
+             updated_at = NOW()
+         WHERE employee_code = $2 AND work_date = $3`,
+        [`[Đã duyệt] ${reqData.reason}`, reqData.employee_code, reqData.work_date]
+      );
+    } else if (status === 'REJECTED') {
+      // 🔴 TỪ CHỐI: Lấy số phút muộn đã lưu lúc check-in, tính toán ra tiền phạt chính thức và gập phạt xuống
+      const logCheck = await client.query(
+        `SELECT check_in_time FROM attendance_logs WHERE employee_code = $1 AND work_date = $2`,
+        [reqData.employee_code, reqData.work_date]
+      );
 
-            await client.query(
-              `UPDATE attendance_logs 
-               SET is_exempt = FALSE, 
-                   minutes_late = $1, 
-                   fine_blocks = $2, 
-                   total_fine = $3, 
-                   note = $4, 
-                   updated_at = NOW()
-               WHERE employee_code = $5 AND work_date = $6`,
-              [
-                computed.minutes_late, 
-                computed.fine_blocks, 
-                computed.total_fine, 
-                `[Từ chối giải trình] ${reqData.reason}`, 
-                reqData.employee_code, 
-                reqData.work_date
-              ]
-            );
-          }
-        }
+      if (logCheck.rows.length > 0 && logCheck.rows[0].check_in_time) {
+        const settings = await getSettings();
+        const computed = calculateLateness(logCheck.rows[0].check_in_time, settings);
+
+        await client.query(
+          `UPDATE attendance_logs 
+           SET is_exempt = FALSE, 
+               minutes_late = $1, 
+               fine_blocks = $2, 
+               total_fine = $3, 
+               note = $4, 
+               updated_at = NOW()
+           WHERE employee_code = $5 AND work_date = $6`,
+          [
+            computed.minutes_late, 
+            computed.fine_blocks, 
+            computed.total_fine, 
+            `[Từ chối giải trình] ${reqData.reason}`, 
+            reqData.employee_code, 
+            reqData.work_date
+          ]
+        );
       }
     }
 
     await client.query('COMMIT');
+    triggerAutoSync(String(rows[0].work_date).slice(0, 7));
     res.json({ success: true, message: `Đã ${status === 'APPROVED' ? 'duyệt' : 'từ chối'} đơn thành công.` });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     console.error(err);
     res.status(500).json({ success: false, message: 'Lỗi server khi xử lý đơn.' });
   } finally {
@@ -397,7 +408,7 @@ router.post('/resolve-excuse', async (req, res, next) => {
 router.post('/mark-manual-evidence', async (req, res, next) => {
   try {
     const { log_ids } = req.body;
-    if (!log_ids || log_ids.length === 0) return res.status(400).json({ error: 'Not selected any logs' });
+    if (!Array.isArray(log_ids) || log_ids.length === 0) return res.status(400).json({ error: 'Not selected any logs' });
 
     for (const logId of log_ids) {
         await pool.query(
@@ -427,14 +438,29 @@ router.post('/upload-evidence', upload.array('media', 10), async (req, res, next
       return res.status(400).json({ error: 'Missing files or no logs selected.' });
     }
 
-    const parsedIds = JSON.parse(log_ids);
-    if (parsedIds.length === 0) return res.status(400).json({ error: 'No logs selected.' });
+    let parsedIds;
+    try {
+      parsedIds = JSON.parse(log_ids);
+    } catch {
+      parsedIds = null;
+    }
+    if (!Array.isArray(parsedIds) || parsedIds.length === 0) {
+      files.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
+      return res.status(400).json({ error: 'No logs selected.' });
+    }
 
     const rootFolderId = process.env.DRIVE_FOLDER_ID;
-    
-    // Tự động lấy tháng hiện tại (VD: T9/2026) và lấy Target Folder ID
-    const currentDate = new Date();
-    const monthFolderName = `T${currentDate.getMonth() + 1}/${currentDate.getFullYear()}`;
+
+    // File into the folder of the month the lateness happened in (VD: T9/2026),
+    // not the month of the upload — archive-month zips by work month, so
+    // evidence for late September uploaded in October must land in T9.
+    const { rows: dateRows } = await pool.query(
+      'SELECT MIN(work_date) AS work_date FROM attendance_logs WHERE id = ANY($1::int[])',
+      [parsedIds]
+    );
+    const workMonth = dateRows[0].work_date ? String(dateRows[0].work_date).slice(0, 7) : todayDate().slice(0, 7);
+    const [workYear, workMonthNum] = workMonth.split('-');
+    const monthFolderName = `T${parseInt(workMonthNum, 10)}/${workYear}`;
     const targetFolderId = await getOrCreateFolder(monthFolderName, rootFolderId);
 
     const uploadedFileIds = [];
@@ -477,7 +503,7 @@ router.post('/upload-evidence', upload.array('media', 10), async (req, res, next
 router.post('/archive-month', async (req, res, next) => {
   try {
     const { month } = req.body; // Định dạng 'YYYY-MM'
-    if (!month) return res.status(400).json({ error: 'Missing month information.' });
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ error: 'month is required in YYYY-MM format' });
 
     const rootFolderId = process.env.DRIVE_FOLDER_ID;
     

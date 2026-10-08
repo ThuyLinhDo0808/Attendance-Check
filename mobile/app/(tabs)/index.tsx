@@ -4,6 +4,7 @@ import { CameraView, Camera } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authFetch } from '@/lib/auth';
 import { useRouter } from 'expo-router';
+import { BACKEND_URL } from '@/constants/api';
 
 export default function CheckInScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -12,8 +13,6 @@ export default function CheckInScreen() {
   const router = useRouter();
 
   const isScanningRef = useRef(false);
-
-  const BACKEND_URL = 'http://192.168.103.174:4000/api';
 
   useEffect(() => {
     (async () => {

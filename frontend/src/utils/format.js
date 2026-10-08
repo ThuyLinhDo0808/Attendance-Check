@@ -12,8 +12,17 @@ export function formatBlocks(value) {
   return (Number(value) || 0).toFixed(2);
 }
 
+// Local calendar date as YYYY-MM-DD. toISOString() would give the UTC
+// date instead, which in Vietnam (UTC+7) is still "yesterday" until 07:00.
+export function localDateValue(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function currentMonthValue() {
-  return new Date().toISOString().slice(0, 7); // YYYY-MM
+  return localDateValue().slice(0, 7); // YYYY-MM
 }
 
 export function formatMonthLabel(monthStr) {
@@ -25,7 +34,9 @@ export function formatMonthLabel(monthStr) {
 
 export function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  // A bare YYYY-MM-DD is parsed as UTC midnight, which shows the previous
+  // day in timezones west of UTC; read it as a local date instead.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(`${dateStr}T00:00:00`) : new Date(dateStr);
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
@@ -56,7 +67,7 @@ export function weekToDates(weekStr) {
   end.setDate(start.getDate() + 6);
   
   return {
-    start_date: start.toISOString().slice(0, 10),
-    end_date: end.toISOString().slice(0, 10),
+    start_date: localDateValue(start),
+    end_date: localDateValue(end),
   };
 }

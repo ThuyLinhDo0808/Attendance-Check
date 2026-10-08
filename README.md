@@ -52,12 +52,14 @@ Two audit endpoints make this queryable directly:
 ### 1. Business Rules
 - **Workday start:** default 08:30 AM — the current version of the `workday_start_time` setting.
 - **Lateness:** any check-in strictly after the start time.
-- **Fine blocks:** `minutes_late / block_minutes` — **rounded UP** to the nearest whole block (`Math.ceil`). Any partial block counts as a full block.
-  - 1 to 15 min late (15-min block) → **1** block
-  - 16 to 30 min late → **2** blocks
+- **Fine blocks:** `minutes_late / block_minutes` — **rounded to the nearest** whole block (`Math.round`). Below half a block rounds down, half or more rounds up.
+  - 1 to 7 min late (15-min block, under 0.5) → **0** blocks
+  - 8 to 22 min late (e.g. 14 min = 0.93, 19 min = 1.27) → **1** block
+  - 23 to 37 min late (e.g. 25 min = 1.67) → **2** blocks
 - **Fine amount:** `fine_blocks × fine_per_block_vnd`.
   - Default rate is 10,000 VNĐ per block (configurable in Settings).
-  - 1 min late (08:31) → 1 block × 10,000 = **10,000 VNĐ**
+  - 5 min late (08:35) → 0 blocks = **0 VNĐ**
+  - 14 min late (08:44) → 1 block × 10,000 = **10,000 VNĐ**
   - 30 min late (09:00) → 2 blocks × 10,000 = **20,000 VNĐ**
 - **Exempt days:** the admin can mark a day `is_exempt` (approved leave,
   business trip) — check-in becomes optional and no fine is charged,
@@ -303,11 +305,14 @@ npm run build      # outputs static files to frontend/dist
 npm install
 ```
 
-- Configure Local IP:
-  + Set `BACKEND_URL` in your mobile app files to your computer's local network IP address:
+- Configure the server address:
+  + The app reads the API address from `EXPO_PUBLIC_API_URL` (see `mobile/constants/api.ts`). Copy `mobile/.env.example` to `mobile/.env` and set it:
 
   ``` bash
-  const BACKEND_URL = 'http://YOUR_LOCAL_IP:4000/api';
+  # hosted backend
+  EXPO_PUBLIC_API_URL=https://attendance-check-api.onrender.com/api
+  # or a backend on your computer (same Wi-Fi)
+  EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:4000/api
   ```
 
 - Start the mobile app:
@@ -317,6 +322,18 @@ npm install
 ```
 
 - Scan the QR code using the camerea (IOS)/ Expo Go app (Android) on your physical device.
+
+## Deploying online (Render)
+
+`render.yaml` describes the whole stack: the API (built from `backend/Dockerfile`, which includes Python + OpenCV for blueprint analysis), a PostgreSQL database and the admin dashboard as a static site.
+
+1. In Render: **New > Blueprint**, pick this repository and apply.
+2. Load the schema once from your machine, using the database's *External* URL:
+   `cd backend && DATABASE_URL=<external url> DATABASE_SSL=true npm run seed`
+   (this drops and recreates the tables, so only run it on a fresh database).
+3. If Render gives the API a different URL than `attendance-check-api.onrender.com`, update `EXPO_PUBLIC_API_URL` for the mobile app and `VITE_API_BASE_URL` in `render.yaml`.
+
+Free Render services sleep after inactivity (the first request takes ~1 minute to wake), and the free database expires after 30 days; use a paid plan for real use.
 
 ## API reference
 

@@ -1,67 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-const TOKEN_KEY = 'auth_token';
-const USER_KEY = 'auth_user';
-
-// --- Session -----------------------------------------------------------
-// The login token lives in localStorage so a page refresh keeps the admin
-// signed in. Every API call sends it as a Bearer token; a 401 from the
-// server (expired or revoked) clears it and sends the app back to login.
-
-const listeners = new Set();
-
-function readStorage(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-export const session = {
-  getToken: () => readStorage(TOKEN_KEY),
-  getUser: () => {
-    try {
-      return JSON.parse(readStorage(USER_KEY));
-    } catch {
-      return null;
-    }
-  },
-  save(token, user) {
-    try {
-      localStorage.setItem(TOKEN_KEY, token);
-      localStorage.setItem(USER_KEY, JSON.stringify(user));
-    } catch {
-      // Private mode etc. — the session just won't survive a refresh.
-    }
-    listeners.forEach((fn) => fn(user));
-  },
-  clear() {
-    try {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
-    } catch {
-      // ignore
-    }
-    listeners.forEach((fn) => fn(null));
-  },
-  subscribe(fn) {
-    listeners.add(fn);
-    return () => listeners.delete(fn);
-  },
-};
-
-/**
- * fetch() that adds the login token and signs the user out on a 401.
- * Accepts either a full '/api/...' path or a URL already built with BASE_URL.
- */
-export async function authFetch(url, options = {}) {
-  const token = session.getToken();
-  const headers = { ...(options.headers || {}) };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(url, { ...options, headers });
-  if (res.status === 401 && token) session.clear();
-  return res;
-}
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function request(path, options = {}) {
   const res = await authFetch(`${BASE_URL}${path}`, {
@@ -164,20 +101,20 @@ export const api = {
   syncMonthNow: (month) => request('/sync/monthly', { method: 'POST', body: JSON.stringify({ month }) }),
 
   getSeats: async (asOfDate) => {
-    const url = asOfDate ? `/api/seats?as_of=${asOfDate}` : '/api/seats';
-    const res = await authFetch(url);
+    const url = asOfDate ? `${BASE_URL}/seats?as_of=${asOfDate}` : `${BASE_URL}/seats`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error('Không thể tải sơ đồ ghế');
     return res.json();
   },
 
   getAttendanceAudit: async (logId) => {
-    const res = await authFetch(`/api/attendance/audit/${logId}`);
+    const res = await fetch(`${BASE_URL}/attendance/audit/${logId}`);
     if (!res.ok) throw new Error('Lỗi khi tải lịch sử sửa đổi');
     return res.json();
   },
 
   assignSeat: async (seatId, employeeCode) => {
-    const res = await authFetch('/api/seats/assign', {
+    const res = await fetch(`${BASE_URL}/seats/assign`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -217,14 +154,14 @@ export const api = {
 
   // Lấy cấu trúc sơ đồ hiện tại (Bàn và tọa độ ghế)
   getOfficeLayout: async () => {
-    const response = await authFetch('/api/seats/layout');
+    const response = await fetch(`${BASE_URL}/seats/layout`);
     if (!response.ok) throw new Error('Failed to fetch office layout');
     return response.json();
   },
 
   // Lưu cấu trúc sơ đồ mới (Dành cho Map Builder kéo thả)
   saveOfficeLayout: async (layoutJson) => {
-    const response = await authFetch('/api/seats/layout', {
+    const response = await fetch(`${BASE_URL}/seats/layout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

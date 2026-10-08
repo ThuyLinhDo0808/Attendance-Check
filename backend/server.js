@@ -15,6 +15,9 @@ const { ensureAuthSchema } = require('./db/authSchema');
 
 const app = express();
 
+// Hosted platforms terminate TLS at a proxy in front of the app.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 

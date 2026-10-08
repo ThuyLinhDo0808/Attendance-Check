@@ -5,6 +5,8 @@
 
 -- Xóa các bảng cũ nếu tồn tại để làm sạch DB trước khi tạo mới
 DROP TABLE IF EXISTS attendance_audits CASCADE;
+DROP TABLE IF EXISTS excuse_requests CASCADE;
+DROP TABLE IF EXISTS office_layouts CASCADE;
 DROP TABLE IF EXISTS seat_assignments CASCADE;
 DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
@@ -48,6 +50,9 @@ CREATE TABLE attendance_logs (
     total_fine      NUMERIC(10, 2) NOT NULL DEFAULT 0,
     is_exempt       BOOLEAN NOT NULL DEFAULT FALSE,
     note            TEXT,
+    -- Google Drive file ids (or the MANUAL_MARK_NO_FILE / ARCHIVED_OFFLINE
+    -- markers) attached as evidence — see routes/attendance.js.
+    evidence_files  JSONB,
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_employee_workdate UNIQUE (employee_code, work_date),
@@ -101,6 +106,34 @@ CREATE TABLE seat_assignments (
     effective_start_date   DATE NOT NULL DEFAULT CURRENT_DATE,
     effective_end_date     DATE NULL,
     is_current             BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX idx_seat_assignments_current ON seat_assignments (seat_id) WHERE is_current;
+
+-- ------------------------------------------------------------
+-- Office layouts (SCD2) — floor plan drawn in the Map Builder
+-- ------------------------------------------------------------
+CREATE TABLE office_layouts (
+    id                     SERIAL PRIMARY KEY,
+    layout_json            JSONB NOT NULL,
+    is_active              BOOLEAN NOT NULL DEFAULT TRUE,
+    effective_start_date   TIMESTAMP NOT NULL DEFAULT NOW(),
+    effective_end_date     TIMESTAMP NULL
+);
+
+-- ------------------------------------------------------------
+-- Excuse requests submitted from the mobile app
+-- ------------------------------------------------------------
+CREATE TABLE excuse_requests (
+    id              SERIAL PRIMARY KEY,
+    employee_code   VARCHAR(50) NOT NULL,
+    work_date       DATE NOT NULL,
+    reason          TEXT NOT NULL DEFAULT '',
+    ai_suggestion   VARCHAR(100),
+    status          VARCHAR(10) NOT NULL DEFAULT 'PENDING'
+                        CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_excuse_employee_workdate UNIQUE (employee_code, work_date)
 );
 
 -- ------------------------------------------------------------

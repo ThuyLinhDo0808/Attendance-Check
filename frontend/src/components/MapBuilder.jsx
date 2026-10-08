@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { api, authFetch } from '../api';
+import { api, BASE_URL } from '../api';
 import { 
   PlusIcon, 
   CheckIcon, 
@@ -165,11 +165,9 @@ export default function MapBuilder() {
   const saveLayout = async () => {
     setSaving(true);
     try {
-      await authFetch('/api/seats/layout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layout_json: layout })
-      });
+      // api.saveOfficeLayout throws on a non-2xx response; a bare fetch()
+      // reported success even when the server rejected the save.
+      await api.saveOfficeLayout(layout);
       alert('Floor plan committed to database.');
     } catch (err) {
       alert('Error syncing layout constraints.');
@@ -199,7 +197,7 @@ export default function MapBuilder() {
     }, 1500);
 
     try {
-      const response = await authFetch('/api/seats/analyze-blueprint', {
+      const response = await fetch(`${BASE_URL}/seats/analyze-blueprint`, {
         method: 'POST',
         body: formData
       });
