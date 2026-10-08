@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveSession } from '@/lib/auth';
 import { BACKEND_URL } from '@/constants/api';
 
 export default function LoginScreen() {

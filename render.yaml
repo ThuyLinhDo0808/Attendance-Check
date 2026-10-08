@@ -13,7 +13,7 @@ services:
         fromDatabase:
           name: attendance-check-db
           property: connectionString
-      # API login (used once login protection is merged).
+      # API login: signs tokens, and sets the first password of owner LinhDT15.
       - key: JWT_SECRET
         generateValue: true
       - key: OWNER_PASSWORD
