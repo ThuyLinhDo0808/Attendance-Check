@@ -32,18 +32,22 @@ test('early or on-time check-in has no fine', () => {
   }
 });
 
-test('any partial block is rounded up to a full block', () => {
+test('lateness rounds to the nearest whole block', () => {
   const cases = [
     // [check-in, minutes_late, fine_blocks, total_fine]
-    ['08:31', 1, 1, 10000],
-    ['08:37', 7, 1, 10000],
-    ['08:38', 8, 1, 10000],
+    ['08:31', 1, 0, 0], // 0.07 blocks
+    ['08:37', 7, 0, 0], // 0.47 < 0.5
+    ['08:38', 8, 1, 10000], // 0.53 >= 0.5
+    ['08:44', 14, 1, 10000], // 0.93 > 0.5
     ['08:45', 15, 1, 10000],
-    ['08:46', 16, 2, 20000],
+    ['08:49', 19, 1, 10000], // 1.27 < 1.5
+    ['08:52', 22, 1, 10000], // 1.47 < 1.5
+    ['08:53', 23, 2, 20000], // 1.53 > 1.5
+    ['08:55', 25, 2, 20000], // 1.67 > 1.5
     ['09:00', 30, 2, 20000],
-    ['09:01', 31, 3, 30000],
+    ['09:07', 37, 2, 20000], // 2.47
+    ['09:08', 38, 3, 30000], // 2.53
     ['10:30', 120, 8, 80000],
-    ['10:31', 121, 9, 90000],
   ];
   for (const [time, minutes_late, fine_blocks, total_fine] of cases) {
     assert.deepEqual(
@@ -54,8 +58,16 @@ test('any partial block is rounded up to a full block', () => {
   }
 });
 
-test('README examples: 08:31 is 10,000 VND and 09:00 is 20,000 VND', () => {
-  assert.equal(calculateLateness('08:31', DEFAULT_SETTINGS).total_fine, 10000);
+test('exactly half a block rounds up', () => {
+  const settings = { ...DEFAULT_SETTINGS, block_minutes: 10 };
+  assert.equal(calculateLateness('08:34', settings).fine_blocks, 0); // 0.4
+  assert.equal(calculateLateness('08:35', settings).fine_blocks, 1); // 0.5
+  assert.equal(calculateLateness('08:45', settings).fine_blocks, 2); // 1.5
+});
+
+test('README examples: 08:35 is free, 08:44 is 10,000 VND, 09:00 is 20,000 VND', () => {
+  assert.equal(calculateLateness('08:35', DEFAULT_SETTINGS).total_fine, 0);
+  assert.equal(calculateLateness('08:44', DEFAULT_SETTINGS).total_fine, 10000);
   assert.equal(calculateLateness('09:00', DEFAULT_SETTINGS).total_fine, 20000);
 });
 
@@ -69,8 +81,8 @@ test('seconds in the check-in time are ignored', () => {
 test('uses the workday start time from settings', () => {
   const settings = { ...DEFAULT_SETTINGS, workday_start_time: '09:00' };
   assert.equal(calculateLateness('08:45', settings).total_fine, 0);
-  assert.deepEqual(calculateLateness('09:20', settings), {
-    minutes_late: 20,
+  assert.deepEqual(calculateLateness('09:25', settings), {
+    minutes_late: 25,
     fine_blocks: 2,
     total_fine: 20000,
   });
@@ -83,12 +95,13 @@ test('uses the block size from settings', () => {
     fine_blocks: 2,
     total_fine: 20000,
   });
-  assert.equal(calculateLateness('08:51', settings).fine_blocks, 3);
+  assert.equal(calculateLateness('08:54', settings).fine_blocks, 2);
+  assert.equal(calculateLateness('08:55', settings).fine_blocks, 3);
 });
 
 test('uses the rate per block from settings', () => {
   const settings = { ...DEFAULT_SETTINGS, fine_per_block_vnd: 25000 };
-  assert.equal(calculateLateness('08:46', settings).total_fine, 50000);
+  assert.equal(calculateLateness('08:55', settings).total_fine, 50000);
 });
 
 test('a zero rate records lateness but no fine', () => {
@@ -103,5 +116,5 @@ test('a zero rate records lateness but no fine', () => {
 test('a fractional rate keeps two decimal places', () => {
   const settings = { ...DEFAULT_SETTINGS, fine_per_block_vnd: 0.1 };
   // 3 blocks * 0.1 is 0.30000000000000004 in floating point.
-  assert.equal(calculateLateness('09:01', settings).total_fine, 0.3);
+  assert.equal(calculateLateness('09:08', settings).total_fine, 0.3);
 });

@@ -26,9 +26,10 @@ function round2(num) {
  * settings, returns the computed lateness fields.
  *
  * minutes_late is always a non-negative integer (early/on-time = 0).
- * fine_blocks is minutes_late / block_minutes rounded UP to a whole block:
- * any partial block counts as a full one — e.g. 1 minute late at a 15-min
- * block = 1 block, 16 minutes late = 2 blocks (see README "Fine blocks").
+ * fine_blocks is minutes_late / block_minutes rounded to the NEAREST whole
+ * block, with exactly half rounding up — e.g. at a 15-min block, 14 minutes
+ * (0.93) = 1 block, 19 minutes (1.27) = 1 block, 25 minutes (1.67) = 2
+ * blocks, and 7 minutes (0.47) = 0 (see README "Fine blocks").
  * total_fine = fine_blocks * rate, rounded to 2 decimal places.
  *
  * @param {string} checkInTime
@@ -43,7 +44,7 @@ function calculateLateness(checkInTime, settings) {
 
   const minutesLate = Math.max(0, checkInMinutes - startMinutes);
 
-  const fineBlocks = Math.ceil(minutesLate / block_minutes);
+  const fineBlocks = Math.round(minutesLate / block_minutes);
   const totalFine = fineBlocks * fine_per_block_vnd;
 
   return {

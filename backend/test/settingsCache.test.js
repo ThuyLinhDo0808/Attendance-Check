@@ -43,7 +43,7 @@ test('parses stored string values into numbers for the calculator', async () => 
     block_minutes: 10,
     fine_per_block_vnd: 20000,
   });
-  assert.equal(calculateLateness('08:41', settings).total_fine, 40000);
+  assert.equal(calculateLateness('08:50', settings).total_fine, 40000);
 });
 
 test('caches current settings until invalidated', async () => {
