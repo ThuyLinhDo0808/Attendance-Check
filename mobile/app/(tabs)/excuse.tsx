@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BACKEND_URL = 'http://192.168.103.174:4000/api';
+import { BACKEND_URL } from '@/constants/api';
 
 export default function ExcuseScreen() {
   const [reason, setReason] = useState('');

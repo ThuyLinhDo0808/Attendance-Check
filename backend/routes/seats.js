@@ -155,7 +155,7 @@ router.post('/analyze-blueprint', upload.single('blueprint'), (req, res) => {
   const pythonScriptPath = path.resolve(__dirname, '../scripts/sam_analyzer.py'); 
 
   // Khởi tạo process chạy Python
-  const pythonProcess = spawn('python', [pythonScriptPath, imagePath]);
+  const pythonProcess = spawn(process.env.PYTHON_BIN || 'python', [pythonScriptPath, imagePath]);
 
   let dataString = '';
   let errorString = '';

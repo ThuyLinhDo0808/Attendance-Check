@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// ⚠️ THAY IP NÀY BẰNG IP MÁY TÍNH CỦA BẠN VÀ GIỮ NGUYÊN CỔNG 4000
-const BACKEND_URL = 'http://192.168.103.174:4000/api';
+import { BACKEND_URL } from '@/constants/api';
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
