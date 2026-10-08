@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { api, BASE_URL } from '../api';
+import { api, authFetch, BASE_URL } from '../api';
 import { 
   PlusIcon, 
   CheckIcon, 
@@ -197,7 +197,7 @@ export default function MapBuilder() {
     }, 1500);
 
     try {
-      const response = await fetch(`${BASE_URL}/seats/analyze-blueprint`, {
+      const response = await authFetch(`${BASE_URL}/seats/analyze-blueprint`, {
         method: 'POST',
         body: formData
       });

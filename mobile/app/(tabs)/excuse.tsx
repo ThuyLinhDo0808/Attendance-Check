@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_URL } from '@/constants/api';
+import { authFetch } from '@/lib/auth';
 
 export default function ExcuseScreen() {
   const [reason, setReason] = useState('');
