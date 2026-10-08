@@ -90,6 +90,15 @@ function formatCompactVND(value) {
 const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
 export default function App() {
+  const [user, setUser] = useState(() => (session.getToken() ? session.getUser() : null));
+
+  useEffect(() => session.subscribe(setUser), []);
+
+  if (!user) return <Login />;
+  return <Dashboard user={user} />;
+}
+
+function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('logger');
   const [employees, setEmployees] = useState([]);
   const [employeesError, setEmployeesError] = useState(null);

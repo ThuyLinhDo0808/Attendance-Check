@@ -16,6 +16,8 @@ const exportRouter = require('./routes/export');
 const syncRouter = require('./routes/sync');
 const seatsRouter = require('./routes/seats');
 const authRouter = require('./routes/auth');
+const { requireAuth, requireRole } = require('./utils/auth');
+const { ensureAuthSchema } = require('./db/authSchema');
 
 const app = express();
 
@@ -54,6 +56,28 @@ app.get('/api/health', async (req, res) => {
     time: new Date().toISOString(),
   });
 });
+
+// Login is public; everything below needs a valid token.
+app.use('/api/auth', authRouter);
+
+// The few endpoints the mobile app calls are open to every signed-in
+// employee (the handlers restrict them to the caller's own data). The rest
+// of the API is the admin dashboard and needs the admin or owner role.
+const EMPLOYEE_ENDPOINTS = [
+  ['POST', /^\/api\/attendance\/checkin\/?$/],
+  ['POST', /^\/api\/attendance\/excuse\/?$/],
+  ['GET', /^\/api\/analytics\/employee\/[^/]+\/?$/],
+];
+
+function isEmployeeEndpoint(req) {
+  const path = req.originalUrl.split('?')[0];
+  return EMPLOYEE_ENDPOINTS.some(([method, pattern]) => req.method === method && pattern.test(path));
+}
+
+const requireAdmin = requireRole('admin');
+app.use('/api', requireAuth, (req, res, next) =>
+  isEmployeeEndpoint(req) ? next() : requireAdmin(req, res, next)
+);
 
 app.use('/api/employees', employeesRouter);
 app.use('/api/attendance', attendanceRouter);

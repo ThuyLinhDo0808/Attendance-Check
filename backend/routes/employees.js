@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
+const { todayDate } = require('../utils/clock');
 
 const router = express.Router();
 
@@ -126,26 +127,23 @@ router.patch('/:code', async (req, res, next) => {
       [code]
     );
     if (currentRows.length === 0) {
-      client.release();
       return res.status(404).json({ error: 'Employee not found' });
     }
     const current = currentRows[0];
 
     const nextName = name !== undefined ? name : current.name;
     const nextStatus = status !== undefined ? status.toUpperCase() : current.status;
-    const changeDate = effective_date || new Date().toISOString().slice(0, 10);
+    const changeDate = effective_date || todayDate();
 
     const unchanged =
       nextName === current.name &&
       nextStatus === current.status;
 
     if (unchanged) {
-      client.release();
       return res.json(current);
     }
 
     if (changeDate < current.effective_start_date) {
-      client.release();
       return res
         .status(400)
         .json({ error: 'effective_date cannot be earlier than the current version\'s start date' });

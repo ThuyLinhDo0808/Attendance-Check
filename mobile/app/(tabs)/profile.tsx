@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authFetch } from '@/lib/auth';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-
-// ⚠️ NHỚ ĐỔI IP MÁY TÍNH CỦA BẠN VÀO ĐÂY
-const BACKEND_URL = 'http://192.168.103.174:4000/api';
+import { BACKEND_URL } from '@/constants/api';
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState({ name: 'Đang tải...', code: '' });
@@ -29,7 +28,7 @@ export default function ProfileScreen() {
 
           if (code) {
             // Gọi API Analytics của Backend để lấy thống kê
-            const res = await fetch(`${BACKEND_URL}/analytics/employee/${code}`);
+            const res = await authFetch(`${BACKEND_URL}/analytics/employee/${code}`);
             const data = await res.json();
             
             if (isActive && data.stats) {

@@ -1,21 +1,56 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+  const res = await authFetch(`${BASE_URL}${path}`, {
     ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
 
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await res.json() : null;
 
   if (!res.ok) {
-    throw new Error(body?.error || `Request failed (${res.status})`);
+    throw new Error(body?.error || body?.message || `Request failed (${res.status})`);
   }
   return body;
 }
 
+/**
+ * Downloads a file from the API. Plain <a href> links can't carry the
+ * Authorization header, so fetch the file and save it from a blob instead.
+ */
+export async function downloadFile(url, fallbackName = 'export') {
+  const res = await authFetch(url);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error || `Download failed (${res.status})`);
+  }
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  const filename = match ? decodeURIComponent(match[1]) : fallbackName;
+
+  const blobUrl = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
 export const api = {
+  login: (username, password) =>
+    request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  changePassword: (current_password, new_password) =>
+    request('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
+  getAccounts: () => request('/auth/accounts'),
+  setAccountPassword: (code, password) =>
+    request(`/auth/accounts/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify({ password }) }),
+  setAccountRole: (code, role) =>
+    request(`/auth/accounts/${encodeURIComponent(code)}`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  deleteAccount: (code) => request(`/auth/accounts/${encodeURIComponent(code)}`, { method: 'DELETE' }),
+
   getEmployees: (status) => request(`/employees${status ? `?status=${status}` : ''}`),
   getEmployeeHistory: (code) => request(`/employees/${code}/history`),
   createEmployee: (payload) =>
@@ -66,20 +101,20 @@ export const api = {
   syncMonthNow: (month) => request('/sync/monthly', { method: 'POST', body: JSON.stringify({ month }) }),
 
   getSeats: async (asOfDate) => {
-    const url = asOfDate ? `/api/seats?as_of=${asOfDate}` : '/api/seats';
+    const url = asOfDate ? `${BASE_URL}/seats?as_of=${asOfDate}` : `${BASE_URL}/seats`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('Không thể tải sơ đồ ghế');
     return res.json();
   },
 
   getAttendanceAudit: async (logId) => {
-    const res = await fetch(`/api/attendance/audit/${logId}`);
+    const res = await fetch(`${BASE_URL}/attendance/audit/${logId}`);
     if (!res.ok) throw new Error('Lỗi khi tải lịch sử sửa đổi');
     return res.json();
   },
 
   assignSeat: async (seatId, employeeCode) => {
-    const res = await fetch('/api/seats/assign', {
+    const res = await fetch(`${BASE_URL}/seats/assign`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -102,7 +137,7 @@ export const api = {
 
   uploadEvidence: async (formData) => {
     // Không dùng hàm request() chung, mà dùng thẳng fetch() để trình duyệt tự lo Header cho FormData
-    const res = await fetch(`${BASE_URL}/attendance/upload-evidence`, {
+    const res = await authFetch(`${BASE_URL}/attendance/upload-evidence`, {
       method: 'POST',
       body: formData,
     });
@@ -119,14 +154,14 @@ export const api = {
 
   // Lấy cấu trúc sơ đồ hiện tại (Bàn và tọa độ ghế)
   getOfficeLayout: async () => {
-    const response = await fetch('/api/seats/layout');
+    const response = await fetch(`${BASE_URL}/seats/layout`);
     if (!response.ok) throw new Error('Failed to fetch office layout');
     return response.json();
   },
 
   // Lưu cấu trúc sơ đồ mới (Dành cho Map Builder kéo thả)
   saveOfficeLayout: async (layoutJson) => {
-    const response = await fetch('/api/seats/layout', {
+    const response = await fetch(`${BASE_URL}/seats/layout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

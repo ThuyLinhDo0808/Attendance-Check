@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../api';
+import { api, downloadFile } from '../api';
 import { formatVND, formatTime, formatDate, currentWeekValue, weekToDates } from '../utils/format';
 import { CalendarDaysIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
@@ -46,12 +46,13 @@ export default function WeeklyReport() {
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 ml-1">Export Data</label>
-            <a
-              href={api.exportRangeUrl({ start_date: dates?.start_date, end_date: dates?.end_date, format: 'xlsx' })}
+            <button
+              type="button"
+              onClick={() => downloadFile(api.exportRangeUrl({ start_date: dates?.start_date, end_date: dates?.end_date, format: 'xlsx' }), `weekly-report-${dates?.start_date || ''}.xlsx`).catch((err) => alert(err.message))}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
             >
               <ArrowDownTrayIcon className="w-4 h-4" /> Excel
-            </a>
+            </button>
           </div>
         </div>
       </header>

@@ -5,6 +5,8 @@
 
 -- Xóa các bảng cũ nếu tồn tại để làm sạch DB trước khi tạo mới
 DROP TABLE IF EXISTS attendance_audits CASCADE;
+DROP TABLE IF EXISTS excuse_requests CASCADE;
+DROP TABLE IF EXISTS office_layouts CASCADE;
 DROP TABLE IF EXISTS seat_assignments CASCADE;
 DROP TABLE IF EXISTS attendance_logs CASCADE;
 DROP TABLE IF EXISTS employees CASCADE;
@@ -48,6 +50,9 @@ CREATE TABLE attendance_logs (
     total_fine      NUMERIC(10, 2) NOT NULL DEFAULT 0,
     is_exempt       BOOLEAN NOT NULL DEFAULT FALSE,
     note            TEXT,
+    -- Google Drive file ids (or the MANUAL_MARK_NO_FILE / ARCHIVED_OFFLINE
+    -- markers) attached as evidence — see routes/attendance.js.
+    evidence_files  JSONB,
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_employee_workdate UNIQUE (employee_code, work_date),
@@ -103,6 +108,34 @@ CREATE TABLE seat_assignments (
     is_current             BOOLEAN DEFAULT TRUE
 );
 
+CREATE INDEX idx_seat_assignments_current ON seat_assignments (seat_id) WHERE is_current;
+
+-- ------------------------------------------------------------
+-- Office layouts (SCD2) — floor plan drawn in the Map Builder
+-- ------------------------------------------------------------
+CREATE TABLE office_layouts (
+    id                     SERIAL PRIMARY KEY,
+    layout_json            JSONB NOT NULL,
+    is_active              BOOLEAN NOT NULL DEFAULT TRUE,
+    effective_start_date   TIMESTAMP NOT NULL DEFAULT NOW(),
+    effective_end_date     TIMESTAMP NULL
+);
+
+-- ------------------------------------------------------------
+-- Excuse requests submitted from the mobile app
+-- ------------------------------------------------------------
+CREATE TABLE excuse_requests (
+    id              SERIAL PRIMARY KEY,
+    employee_code   VARCHAR(50) NOT NULL,
+    work_date       DATE NOT NULL,
+    reason          TEXT NOT NULL DEFAULT '',
+    ai_suggestion   VARCHAR(100),
+    status          VARCHAR(10) NOT NULL DEFAULT 'PENDING'
+                        CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_excuse_employee_workdate UNIQUE (employee_code, work_date)
+);
+
 -- ------------------------------------------------------------
 -- Settings (SCD2)
 -- ------------------------------------------------------------
@@ -124,6 +157,21 @@ CREATE TABLE settings (
 
 CREATE UNIQUE INDEX uq_settings_current_key ON settings (key) WHERE is_current;
 CREATE INDEX idx_settings_key ON settings (key);
+
+-- ------------------------------------------------------------
+-- User accounts (login)
+-- Keyed by employee_code (stable across SCD2 versions). Not dropped
+-- above so re-running this file keeps everyone's passwords. The owner
+-- account is created on server start from OWNER_PASSWORD.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_accounts (
+    employee_code   VARCHAR(50) PRIMARY KEY,
+    password_hash   TEXT NOT NULL,
+    role            VARCHAR(10) NOT NULL DEFAULT 'employee'
+                        CHECK (role IN ('employee', 'admin', 'owner')),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
 
 -- Khởi tạo dữ liệu cài đặt mặc định[cite: 48]
 INSERT INTO settings (key, value, description, effective_start_date, is_current) VALUES

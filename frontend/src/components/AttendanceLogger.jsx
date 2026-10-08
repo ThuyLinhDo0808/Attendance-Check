@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
-import { formatVNDExact, formatBlocks } from '../utils/format';
+import { formatVNDExact, formatBlocks, localDateValue } from '../utils/format';
 import LateWorkersPanel from './LateWorkersPanel.jsx';
 import LiveOfficeMap from './LiveOfficeMap.jsx';
 import { 
@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateValue();
 }
 
 function previewFine(checkInTime, isExempt, settings) {
