@@ -55,8 +55,8 @@ export default function EvidenceManager() {
     const newFiles = Array.from(e.target.files);
     const combinedFiles = [...bulkFiles, ...newFiles];
 
-    if (combinedFiles.length > 5) {
-      return alert('You can only select up to 5 files at a time!');
+    if (combinedFiles.length > 10) {
+      return alert('You can only select up to 10 files at a time!');
     }
     
     const totalSize = combinedFiles.reduce((acc, file) => acc + file.size, 0);
@@ -118,7 +118,7 @@ export default function EvidenceManager() {
   };
 
   const handleUpload = async (files, logIdsArray) => {
-    if (files.length === 0 || files.length > 5) return alert("Please select between 1 and 5 files!");
+    if (files.length === 0 || files.length > 10) return alert("Please select between 1 and 10 files!");
     
     setIsUploading(true);
     setUploadLogs(["⏳ Preparing files and connecting to server..."]);
@@ -164,7 +164,7 @@ export default function EvidenceManager() {
   };
 
   const handleIndividualUpload = async (files, logId) => {
-    if (files.length === 0 || files.length > 5) return alert("Please select between 1 and 5 files!");
+    if (files.length === 0 || files.length > 10) return alert("Please select between 1 and 10 files!");
     
     // Đặt trạng thái thẻ thành đang tải lên
     setCardUploadStatus(prev => ({
@@ -319,7 +319,7 @@ export default function EvidenceManager() {
       {bulkMode && (
           <div className="m-6 bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
             <div className="mb-6">
-              <h3 className="font-bold text-slate-800 mb-2">1. Select Evidence Files (Max 5 files)</h3>
+              <h3 className="font-bold text-slate-800 mb-2">1. Select Evidence Files (Max 10 files)</h3>
               <div className="relative border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition-colors rounded-lg p-4 text-center">
                 <input 
                   type="file" multiple accept="video/*, image/*" 

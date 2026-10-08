@@ -414,7 +414,7 @@ router.post('/mark-manual-evidence', async (req, res, next) => {
  * POST /api/attendance/upload-evidence
  * Nhận video, đổi tên theo Ngày vi phạm, tải lên Drive và gắn Tag
  */
-router.post('/upload-evidence', upload.array('media', 5), async (req, res, next) => {
+router.post('/upload-evidence', upload.array('media', 10), async (req, res, next) => {
   try {
     const { log_ids, custom_name } = req.body; 
     const files = req.files;
