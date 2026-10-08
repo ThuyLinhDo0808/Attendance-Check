@@ -40,8 +40,8 @@ export default function PendingExcuses({ onResolved }) {
   return (
     <div className="space-y-6 py-2">
       <header className="border-b border-slate-200 pb-5">
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
-            <BellAlertIcon className="h-8 w-8 text-indigo-600"/>
+        <h2 className="page-title">
+            <BellAlertIcon className="page-title-icon" />
             Pending Resolutions
         </h2>
         <p className="text-sm font-medium text-slate-500 mt-2">

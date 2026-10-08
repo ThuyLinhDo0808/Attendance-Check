@@ -6,7 +6,8 @@ import {
   ExclamationCircleIcon, 
   UserGroupIcon,
   ArchiveBoxIcon,
-  CalendarIcon
+  CalendarIcon,
+  VideoCameraIcon
 } from '@heroicons/react/24/outline';
 
 export default function EvidenceManager() {
@@ -261,7 +262,7 @@ export default function EvidenceManager() {
       <div className="px-6 py-5 border-b border-slate-200 bg-white">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Evidence Manager</h2>
+            <h2 className="page-title"><VideoCameraIcon className="page-title-icon" />Evidence Manager</h2>
             <p className="text-sm text-slate-500 mt-1">Manage attendance evidence records</p>
           </div>
           

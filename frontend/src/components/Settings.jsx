@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api';
 import { formatVNDExact, formatBlocks, currentMonthValue } from '../utils/format';
 import { useShortcuts, SHORTCUT_REGISTRY } from '../hooks/useShortcuts';
+import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 const FIELD_META = {
   workday_start_time: {
@@ -91,7 +92,7 @@ export default function Settings({ onSaved }) {
   return (
     <div>
       <header className="mb-6">
-        <h2 className="text-2xl font-bold text-slate-900">Settings</h2>
+        <h2 className="page-title"><Cog6ToothIcon className="page-title-icon" />Settings</h2>
         
         {/* 3. Thêm Header Menu chuyển Tab */}
         <div className="flex gap-6 border-b border-slate-200 mt-4">

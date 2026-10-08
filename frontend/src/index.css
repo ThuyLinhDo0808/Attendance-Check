@@ -1,71 +1,182 @@
-/* index.css hoặc App.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Animations cho chuyên nghiệp */
+/* ---------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------- */
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
 
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans;
+    /* Inter's alternate digits & disambiguated letterforms read cleaner
+       in a numbers-heavy ledger. */
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    background-image:
+      radial-gradient(1200px 400px at 100% -10%, rgb(91 79 227 / 0.06), transparent 60%),
+      radial-gradient(800px 300px at 0% 0%, rgb(14 165 233 / 0.04), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3 {
+    @apply font-display;
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background: rgb(91 79 227 / 0.18);
+  }
+
+  /* One consistent, accessible focus treatment for every control. */
+  :focus-visible {
+    outline: 2px solid rgb(91 79 227 / 0.55);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply transition-shadow duration-150;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-slate-400;
+  }
+
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+
+  code, kbd, pre, samp {
+    @apply font-code;
+    font-size: 0.92em;
+  }
+
+  thead th {
+    letter-spacing: 0.06em;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Components
+   --------------------------------------------------------------------- */
+@layer components {
+  .page-title {
+    @apply flex items-center gap-3 text-[1.625rem] leading-8 font-semibold text-slate-900;
+  }
+
+  .page-title-icon {
+    @apply h-10 w-10 shrink-0 rounded-xl bg-gradient-to-b from-white to-indigo-50 p-2 text-indigo-600 shadow-sm ring-1 ring-inset ring-indigo-100;
+  }
+
+  .card {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm;
+  }
+
+  .kbd {
+    @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-slate-200 bg-white px-1 font-sans text-[10px] font-semibold text-slate-500 shadow-[0_1px_0_0_rgb(15_23_42/0.06)];
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Utilities
+   --------------------------------------------------------------------- */
+@layer utilities {
+  /* Tabular figures so amounts and times line up in columns. */
+  .font-mono {
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-feature-settings: 'tnum', 'zero', 'cv11', 'ss01';
+    letter-spacing: -0.005em;
+  }
+
+  .font-mono-num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum', 'cv11', 'ss01';
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Animations
+   --------------------------------------------------------------------- */
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
-    from { transform: translateY(10px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
 @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20%, 60% { transform: translateX(-2px); }
-    40%, 80% { transform: translateX(2px); }
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-2px); }
+  40%, 80% { transform: translateX(2px); }
 }
 
 @keyframes pulseIndigo {
-    0%, 100% { background-color: rgba(224, 231, 255, 0.5); } /* bg-indigo-100/50 */
-    50% { background-color: rgba(224, 231, 255, 0.8); }
+  0%, 100% { background-color: rgba(230, 230, 254, 0.5); }
+  50% { background-color: rgba(230, 230, 254, 0.85); }
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
 
-.anim-fade-in {
-    animation: fadeIn 0.3s ease-out forwards;
+.anim-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+.anim-slide-up { animation: slideUp 0.4s ease-out forwards; }
+.anim-shake { animation: shake 0.4s ease-in-out; }
+.anim-pulse { animation: pulseIndigo 1.5s infinite; }
+.anim-spin { animation: spin 1s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-.anim-slide-up {
-    animation: slideUp 0.4s ease-out forwards;
-}
-
-.anim-shake {
-    animation: shake 0.4s ease-in-out;
-}
-
-.anim-pulse {
-    animation: pulseIndigo 1.5s infinite;
-}
-
-.anim-spin {
-    animation: spin 1s linear infinite;
-}
-
-/* Tinh chỉnh scrollbar cho chuyên nghiệp */
+/* ---------------------------------------------------------------------
+   Scrollbars
+   --------------------------------------------------------------------- */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f5f9; /* slate-100 */
-  border-radius: 10px;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
-  border-radius: 10px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-400 */
+  background: #94a3b8;
+  background-clip: content-box;
 }

@@ -59,8 +59,8 @@ export default function EmployeeFineSheet() {
     <div className="space-y-6 py-2">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
-             <TableCellsIcon className="h-8 w-8 text-indigo-600"/>
+          <h2 className="page-title">
+             <TableCellsIcon className="page-title-icon" />
              Fine Ledger Sheet
           </h2>
           <p className="text-sm font-medium text-slate-500 mt-2">
