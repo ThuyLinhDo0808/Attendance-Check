@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { api } from '../api';
+import { api, authFetch } from '../api';
 import { 
   PlusIcon, 
   CheckIcon, 
@@ -165,7 +165,7 @@ export default function MapBuilder() {
   const saveLayout = async () => {
     setSaving(true);
     try {
-      await fetch('/api/seats/layout', {
+      await authFetch('/api/seats/layout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layout_json: layout })
@@ -199,7 +199,7 @@ export default function MapBuilder() {
     }, 1500);
 
     try {
-      const response = await fetch('/api/seats/analyze-blueprint', {
+      const response = await authFetch('/api/seats/analyze-blueprint', {
         method: 'POST',
         body: formData
       });

@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db/pool');
 const { fetchRangeLateRows } = require('../utils/reportQueries');
+const { resolveActingCode } = require('../utils/auth');
 
 const router = express.Router();
 
@@ -82,7 +83,9 @@ router.get('/monthly', async (req, res, next) => {
  */
 router.get('/employee/:code', async (req, res, next) => {
   try {
-    const { code } = req.params;
+    // Employees may only see their own stats.
+    const code = resolveActingCode(req.user, req.params.code);
+    if (!code) return res.status(403).json({ error: 'Bạn chỉ có thể xem thống kê của chính mình.' });
     const { month } = req.query;
 
     const empResult = await pool.query(

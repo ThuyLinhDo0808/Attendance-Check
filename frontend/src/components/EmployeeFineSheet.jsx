@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { api } from '../api';
+import { api, downloadFile } from '../api';
 import { formatVND, formatBlocks, currentMonthValue, formatMonthLabel } from '../utils/format';
 import EmployeeModal from './EmployeeModal.jsx';
 import { ArrowsUpDownIcon, TableCellsIcon } from '@heroicons/react/24/outline';
@@ -87,9 +87,9 @@ export default function EmployeeFineSheet() {
           <div>
              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 ml-1">Export Data</label>
              <div className="flex gap-2">
-                 <a href={api.exportMonthlyUrl({ month, format: 'xlsx' })} className="inline-flex items-center px-4 py-2 rounded-md bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors">
+                 <button type="button" onClick={() => downloadFile(api.exportMonthlyUrl({ month, format: 'xlsx' }), `fine-sheet-${month}.xlsx`).catch((err) => alert(err.message))} className="inline-flex items-center px-4 py-2 rounded-md bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors">
                     Download Excel
-                 </a>
+                 </button>
              </div>
           </div>
         </div>

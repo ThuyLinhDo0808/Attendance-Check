@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../api';
+import { api, authFetch } from '../api';
 import { 
   MagnifyingGlassIcon, 
   CheckCircleIcon, 
@@ -78,7 +78,7 @@ export default function EvidenceManager() {
 
     setIsUploading(true);
     try {
-        const res = await fetch('/api/attendance/mark-manual-evidence', {
+        const res = await authFetch('/api/attendance/mark-manual-evidence', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ log_ids: logIdsArray })
@@ -102,7 +102,7 @@ export default function EvidenceManager() {
     if (!window.confirm(`⚠️ IMPORTANT:\nThis action will freeze all evidence for ${month}.\n\nHave you ALREADY DOWNLOADED the ZIP file of this month's videos from Google Drive to your local computer?`)) return;
 
     try {
-        const res = await fetch('/api/attendance/archive-month', {
+        const res = await authFetch('/api/attendance/archive-month', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ month })
@@ -240,7 +240,7 @@ export default function EvidenceManager() {
     if (!window.confirm("Bạn có chắc chắn muốn xóa video này khỏi hệ thống và Google Drive?")) return;
     
     try {
-        const res = await fetch('/api/attendance/delete-evidence', {
+        const res = await authFetch('/api/attendance/delete-evidence', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ log_id: logId, file_id: fileId })
