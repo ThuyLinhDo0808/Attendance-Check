@@ -3,9 +3,7 @@ import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-
-// ⚠️ NHỚ ĐỔI IP MÁY TÍNH CỦA BẠN VÀO ĐÂY
-const BACKEND_URL = 'http://192.168.103.174:4000/api';
+import { BACKEND_URL } from '@/constants/api';
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState({ name: 'Đang tải...', code: '' });

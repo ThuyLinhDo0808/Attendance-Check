@@ -158,19 +158,7 @@ router.post('/analyze-blueprint', upload.single('blueprint'), (req, res) => {
   const pythonScriptPath = path.resolve(__dirname, '../scripts/sam_analyzer.py'); 
 
   // Khởi tạo process chạy Python
-  // PYTHON_BIN lets hosts where the interpreter is only `python3` (most
-  // Linux servers) run the analyzer without code changes.
   const pythonProcess = spawn(process.env.PYTHON_BIN || 'python', [pythonScriptPath, imagePath]);
-
-  // Without an 'error' listener a missing Python binary (ENOENT) is an
-  // uncaught exception that takes the whole API down.
-  let spawnFailed = false;
-  pythonProcess.on('error', (err) => {
-    spawnFailed = true;
-    console.error('Could not start the blueprint analyzer:', err.message);
-    fs.unlink(imagePath, () => {});
-    if (!res.headersSent) res.status(500).json({ error: 'Vision model is not available on this server.' });
-  });
 
   let dataString = '';
   let errorString = '';
