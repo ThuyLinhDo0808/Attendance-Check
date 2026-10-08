@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -66,20 +66,20 @@ export const api = {
   syncMonthNow: (month) => request('/sync/monthly', { method: 'POST', body: JSON.stringify({ month }) }),
 
   getSeats: async (asOfDate) => {
-    const url = asOfDate ? `/api/seats?as_of=${asOfDate}` : '/api/seats';
+    const url = asOfDate ? `${BASE_URL}/seats?as_of=${asOfDate}` : `${BASE_URL}/seats`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('Không thể tải sơ đồ ghế');
     return res.json();
   },
 
   getAttendanceAudit: async (logId) => {
-    const res = await fetch(`/api/attendance/audit/${logId}`);
+    const res = await fetch(`${BASE_URL}/attendance/audit/${logId}`);
     if (!res.ok) throw new Error('Lỗi khi tải lịch sử sửa đổi');
     return res.json();
   },
 
   assignSeat: async (seatId, employeeCode) => {
-    const res = await fetch('/api/seats/assign', {
+    const res = await fetch(`${BASE_URL}/seats/assign`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -119,14 +119,14 @@ export const api = {
 
   // Lấy cấu trúc sơ đồ hiện tại (Bàn và tọa độ ghế)
   getOfficeLayout: async () => {
-    const response = await fetch('/api/seats/layout');
+    const response = await fetch(`${BASE_URL}/seats/layout`);
     if (!response.ok) throw new Error('Failed to fetch office layout');
     return response.json();
   },
 
   // Lưu cấu trúc sơ đồ mới (Dành cho Map Builder kéo thả)
   saveOfficeLayout: async (layoutJson) => {
-    const response = await fetch('/api/seats/layout', {
+    const response = await fetch(`${BASE_URL}/seats/layout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

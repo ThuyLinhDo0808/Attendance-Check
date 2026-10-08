@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db/pool');
 const { fetchRangeLateRows } = require('../utils/reportQueries');
+const { currentMonth } = require('../utils/clock');
 
 const router = express.Router();
 
@@ -11,7 +12,7 @@ const router = express.Router();
  */
 router.get('/monthly', async (req, res, next) => {
   try {
-    const month = req.query.month || new Date().toISOString().slice(0, 7); // YYYY-MM
+    const month = req.query.month || currentMonth(); // YYYY-MM
     const monthDate = `${month}-01`;
 
     const summaryPromise = pool.query(

@@ -47,6 +47,9 @@ router.post('/layout', async (req, res, next) => {
   const client = await pool.connect();
   try {
     const { layout_json } = req.body;
+    if (!layout_json || !Array.isArray(layout_json.seats)) {
+      return res.status(400).json({ error: 'layout_json with a seats array is required' });
+    }
     await client.query('BEGIN');
     
     // Đóng phiên bản cũ: Cập nhật is_active = FALSE và chốt effective_end_date
@@ -65,7 +68,7 @@ router.post('/layout', async (req, res, next) => {
     await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
   } finally {
     client.release();
@@ -137,7 +140,7 @@ router.post('/assign', async (req, res, next) => {
     await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
   } finally {
     client.release();
@@ -155,7 +158,19 @@ router.post('/analyze-blueprint', upload.single('blueprint'), (req, res) => {
   const pythonScriptPath = path.resolve(__dirname, '../scripts/sam_analyzer.py'); 
 
   // Khởi tạo process chạy Python
-  const pythonProcess = spawn('python', [pythonScriptPath, imagePath]);
+  // PYTHON_BIN lets hosts where the interpreter is only `python3` (most
+  // Linux servers) run the analyzer without code changes.
+  const pythonProcess = spawn(process.env.PYTHON_BIN || 'python', [pythonScriptPath, imagePath]);
+
+  // Without an 'error' listener a missing Python binary (ENOENT) is an
+  // uncaught exception that takes the whole API down.
+  let spawnFailed = false;
+  pythonProcess.on('error', (err) => {
+    spawnFailed = true;
+    console.error('Could not start the blueprint analyzer:', err.message);
+    fs.unlink(imagePath, () => {});
+    if (!res.headersSent) res.status(500).json({ error: 'Vision model is not available on this server.' });
+  });
 
   let dataString = '';
   let errorString = '';
@@ -172,6 +187,7 @@ router.post('/analyze-blueprint', upload.single('blueprint'), (req, res) => {
 
   // Khi xử lý xong
   pythonProcess.on('close', (code) => {
+    if (spawnFailed) return;
     // Xóa file ảnh tạm để tiết kiệm dung lượng
     fs.unlink(imagePath, () => {});
 
@@ -227,7 +243,7 @@ router.post('/batch-assign', async (req, res, next) => {
     await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     next(err);
   } finally {
     client.release();
