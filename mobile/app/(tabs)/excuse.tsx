@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityInd
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authFetch } from '@/lib/auth';
 import { BACKEND_URL } from '@/constants/api';
+import { authFetch } from '@/lib/auth';
 
 export default function ExcuseScreen() {
   const [reason, setReason] = useState('');
