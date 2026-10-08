@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Keyboard } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const BACKEND_URL = 'http://192.168.103.174:4000/api';
+import { authFetch } from '@/lib/auth';
+import { BACKEND_URL } from '@/constants/api';
 
 export default function ExcuseScreen() {
   const [reason, setReason] = useState('');
@@ -23,9 +23,8 @@ export default function ExcuseScreen() {
       }
 
       // 2. Gửi yêu cầu phân tích xuống Backend thực tế
-      const response = await fetch(`${BACKEND_URL}/attendance/excuse`, {
+      const response = await authFetch(`${BACKEND_URL}/attendance/excuse`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employee_code: empCode, reason: reason }),
       });
 

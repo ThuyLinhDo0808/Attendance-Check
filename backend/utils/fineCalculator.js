@@ -26,12 +26,11 @@ function round2(num) {
  * settings, returns the computed lateness fields.
  *
  * minutes_late is always a non-negative integer (early/on-time = 0).
- * fine_blocks is the EXACT proportional value (minutes_late / block_minutes),
- * never rounded up — e.g. 16 minutes late at a 15-min block = 1.07 blocks,
- * not 2.
- * total_fine = fine_blocks * rate, rounded to 2 decimal places (VND cents
- * don't really exist, but 2 decimals preserves exact math and avoids
- * compounding rounding errors; the frontend formats for display).
+ * fine_blocks is minutes_late / block_minutes rounded to the NEAREST whole
+ * block, with exactly half rounding up — e.g. at a 15-min block, 14 minutes
+ * (0.93) = 1 block, 19 minutes (1.27) = 1 block, 25 minutes (1.67) = 2
+ * blocks, and 7 minutes (0.47) = 0 (see README "Fine blocks").
+ * total_fine = fine_blocks * rate, rounded to 2 decimal places.
  *
  * @param {string} checkInTime
  * @param {{workday_start_time: string, block_minutes: number, fine_per_block_vnd: number}} settings

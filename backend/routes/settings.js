@@ -124,7 +124,6 @@ router.put('/', async (req, res, next) => {
 
       const error = validate(key, value);
       if (error) {
-        client.release();
         return res.status(400).json({ error });
       }
 
@@ -135,7 +134,6 @@ router.put('/', async (req, res, next) => {
     }
 
     if (changes.length === 0) {
-      client.release();
       return res.status(400).json({ error: 'No changed settings provided.' });
     }
 

@@ -10,6 +10,7 @@ function requestContext(req, res, next) {
 
   const startedAt = process.hrtime.bigint();
   res.on('finish', () => {
+    if (process.env.NODE_ENV === 'test') return;
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
     const line = {
       time: new Date().toISOString(),

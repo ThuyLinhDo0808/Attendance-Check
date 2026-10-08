@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { api } from './api';
+import { api, session } from './api';
 import AttendanceLogger from './components/AttendanceLogger.jsx';
 import CompanyAnalytics from './components/CompanyAnalytics.jsx';
 import EmployeeFineSheet from './components/EmployeeFineSheet.jsx';
@@ -33,6 +33,8 @@ import MapBuilder from './components/MapBuilder.jsx';
 import { useShortcuts, SHORTCUT_REGISTRY } from './hooks/useShortcuts';
 import CommandPalette from './components/CommandPalette.jsx';
 import { useApiHealth } from './hooks/useApiHealth';
+import Login from './components/Login.jsx';
+import AccountMenu from './components/AccountMenu.jsx';
 
 const MENU_GROUPS = [
   {
@@ -90,6 +92,15 @@ function formatCompactVND(value) {
 const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
 export default function App() {
+  const [user, setUser] = useState(() => (session.getToken() ? session.getUser() : null));
+
+  useEffect(() => session.subscribe(setUser), []);
+
+  if (!user) return <Login />;
+  return <Dashboard user={user} />;
+}
+
+function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('logger');
   const [employees, setEmployees] = useState([]);
   const [employeesError, setEmployeesError] = useState(null);
@@ -282,28 +293,12 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="relative border-t border-white/5 p-4">
-          <div className="flex items-center gap-3 rounded-xl px-2 py-1.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-indigo-700 text-xs font-semibold text-white ring-2 ring-white/10">
-              AD
-            </div>
-            <div className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-[13px] font-semibold text-white">Administrator</p>
-              <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                <span className={`h-1.5 w-1.5 rounded-full ${HEALTH_DOT[apiHealth]}`} />
-                {HEALTH_LABEL[apiHealth]}
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('settings')}
-              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-white"
-              aria-label="Open settings"
-              title="Settings"
-            >
-              <Cog6ToothIcon className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
+        <AccountMenu
+          user={user}
+          status={HEALTH_LABEL[apiHealth]}
+          statusDot={HEALTH_DOT[apiHealth]}
+          onOpenSettings={() => navigate('settings')}
+        />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
