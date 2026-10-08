@@ -13,6 +13,11 @@ services:
         fromDatabase:
           name: attendance-check-db
           property: connectionString
+      # API login (used once login protection is merged).
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OWNER_PASSWORD
+        sync: false
       # Google integrations are optional; fill them in on the dashboard.
       - key: GOOGLE_SHEET_ID
         sync: false
