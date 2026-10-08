@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Internal Attendance & Fine Management System - API server",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",

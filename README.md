@@ -282,11 +282,14 @@ npm run build      # outputs static files to frontend/dist
 npm install
 ```
 
-- Configure Local IP:
-  + Set `BACKEND_URL` in your mobile app files to your computer's local network IP address:
+- Configure the server address:
+  + The app reads the API address from `EXPO_PUBLIC_API_URL` (see `mobile/constants/api.ts`). Copy `mobile/.env.example` to `mobile/.env` and set it:
 
   ``` bash
-  const BACKEND_URL = 'http://YOUR_LOCAL_IP:4000/api';
+  # hosted backend
+  EXPO_PUBLIC_API_URL=https://attendance-check-api.onrender.com/api
+  # or a backend on your computer (same Wi-Fi)
+  EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:4000/api
   ```
 
 - Start the mobile app:
@@ -296,6 +299,18 @@ npm install
 ```
 
 - Scan the QR code using the camerea (IOS)/ Expo Go app (Android) on your physical device.
+
+## Deploying online (Render)
+
+`render.yaml` describes the whole stack: the API (built from `backend/Dockerfile`, which includes Python + OpenCV for blueprint analysis), a PostgreSQL database and the admin dashboard as a static site.
+
+1. In Render: **New > Blueprint**, pick this repository and apply.
+2. Load the schema once from your machine, using the database's *External* URL:
+   `cd backend && DATABASE_URL=<external url> DATABASE_SSL=true npm run seed`
+   (this drops and recreates the tables, so only run it on a fresh database).
+3. If Render gives the API a different URL than `attendance-check-api.onrender.com`, update `EXPO_PUBLIC_API_URL` for the mobile app and `VITE_API_BASE_URL` in `render.yaml`.
+
+Free Render services sleep after inactivity (the first request takes ~1 minute to wake), and the free database expires after 30 days; use a paid plan for real use.
 
 ## API reference
 

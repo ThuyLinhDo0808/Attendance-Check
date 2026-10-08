@@ -13,7 +13,13 @@ types.setTypeParser(1082, (val) => val);
 // from process.env, but we pass them explicitly for clarity and so a single
 // DATABASE_URL can override everything in hosted environments.
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      // Most hosted Postgres providers require TLS on external connections.
+      // Set DATABASE_SSL=true for those; leave unset for local or
+      // same-network (e.g. Render internal URL) connections.
+      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+    })
   : new Pool({
       host: process.env.PGHOST || 'localhost',
       port: Number(process.env.PGPORT) || 5432,
