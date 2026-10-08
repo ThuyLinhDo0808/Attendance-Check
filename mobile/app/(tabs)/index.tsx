@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, Camera } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authFetch } from '@/lib/auth';
 import { useRouter } from 'expo-router';
 import { BACKEND_URL } from '@/constants/api';
 
@@ -46,9 +47,8 @@ export default function CheckInScreen() {
           text: "Gửi điểm danh", 
           onPress: async () => {
             try {
-              const response = await fetch(`${BACKEND_URL}/attendance/checkin`, {
+              const response = await authFetch(`${BACKEND_URL}/attendance/checkin`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ employee_code: empCode, qr_data: data }), 
               });
 

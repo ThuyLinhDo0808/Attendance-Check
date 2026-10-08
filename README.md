@@ -255,6 +255,29 @@ npm run dev       # nodemon, auto-restarts on change
 The API listens on `http://localhost:4000` by default. Sanity check:
 `curl http://localhost:4000/api/health`.
 
+### Login and access control
+
+Every API route except `/api/health` and `/api/auth/login` needs a login
+token (`Authorization: Bearer <token>`). Before the first start, copy
+`backend/.env.example` to `backend/.env` and set:
+
+- `JWT_SECRET`: a long random string used to sign tokens.
+- `OWNER_PASSWORD`: the starting password for the owner account
+  **LinhDT15** (created on first start; change it later from the
+  dashboard sidebar, after which this value is ignored).
+
+Roles:
+
+| Role | Who | Can do |
+|------|-----|--------|
+| owner | LinhDT15 (`OWNER_EMPLOYEE_CODE`) | Everything, including making other employees admins |
+| admin | Granted by the owner | The whole web dashboard; set or reset employee passwords |
+| employee | Everyone else with a password | Mobile app only: check in, send an excuse, see their own stats |
+
+Employees can't sign in until an admin sets their password in
+**Employee Management → Set password**. Deactivating an employee or
+deleting their login takes effect immediately.
+
 ## 3. Start the frontend
 
 ```bash
@@ -316,6 +339,12 @@ Free Render services sleep after inactivity (the first request takes ~1 minute t
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| POST   | `/api/auth/login` | Public. Body `{ username, password }` → `{ token, data: { employee_code, name, role } }` |
+| GET    | `/api/auth/me` | Who the current token belongs to |
+| POST   | `/api/auth/change-password` | Body `{ current_password, new_password }` |
+| GET    | `/api/auth/accounts` | Admin: list login accounts |
+| PUT    | `/api/auth/accounts/:code` | Admin: create a login or reset a password (`{ password }`); owner only: `{ role: 'employee' \| 'admin' }` |
+| DELETE | `/api/auth/accounts/:code` | Admin: revoke a login |
 | GET    | `/api/employees` | Current version of every employee (`?status=`, `?as_of=YYYY-MM-DD` for a historical org snapshot) |
 | GET    | `/api/employees/:code/history` | Full SCD2 version timeline for one employee |
 | POST   | `/api/employees` | Create a new employee (first version) |

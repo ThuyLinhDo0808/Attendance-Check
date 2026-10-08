@@ -10,19 +10,22 @@ export default function LoginScreen() {
   const router = useRouter();
 
   const handleLogin = async () => {
+    if (!username.trim() || !password) {
+      Alert.alert('Lỗi', 'Vui lòng nhập tài khoản và mật khẩu.');
+      return;
+    }
     try {
       const response = await fetch(`${BACKEND_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        // Lưu thông tin (employee_code, name) vào bộ nhớ điện thoại
-        await AsyncStorage.setItem('employee_code', result.data.employee_code);
-        await AsyncStorage.setItem('employee_name', result.data.name);
+        // Lưu token đăng nhập và thông tin (employee_code, name) vào bộ nhớ điện thoại
+        await saveSession(result.token, result.data.employee_code, result.data.name);
         
         Alert.alert('Thành công', `Chào mừng ${result.data.name}`);
         
@@ -42,13 +45,15 @@ export default function LoginScreen() {
       
       <TextInput
         style={styles.input}
-        placeholder="Tài khoản (VD: linhdt)"
+        placeholder="Mã nhân viên"
+        autoCapitalize="characters"
+        autoCorrect={false}
         value={username}
         onChangeText={setUsername}
       />
       <TextInput
         style={styles.input}
-        placeholder="Mật khẩu (VD: 123)"
+        placeholder="Mật khẩu"
         secureTextEntry
         value={password}
         onChangeText={setPassword}

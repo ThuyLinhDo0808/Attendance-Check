@@ -11,7 +11,7 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { api } from '../api';
+import { api, downloadFile } from '../api';
 import { formatVND, formatBlocks, currentMonthValue, formatMonthLabel } from '../utils/format';
 import { ArrowDownIcon, PresentationChartLineIcon } from '@heroicons/react/24/outline';
 
@@ -196,18 +196,20 @@ function ExportButtons({ month }) {
     <div>
       <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 ml-1">Xuất dữ liệu</label>
       <div className="flex gap-2">
-        <a
-          href={api.exportMonthlyUrl({ month, format: 'csv', report: 'detail' })}
+        <button
+          type="button"
+          onClick={() => downloadFile(api.exportMonthlyUrl({ month, format: 'csv', report: 'detail' }), `attendance-${month}.csv`).catch((err) => alert(err.message))}
           className="inline-flex items-center px-4 py-2 rounded-lg bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-200 transition-colors"
         >
           CSV
-        </a>
-        <a
-          href={api.exportMonthlyUrl({ month, format: 'xlsx' })}
+        </button>
+        <button
+          type="button"
+          onClick={() => downloadFile(api.exportMonthlyUrl({ month, format: 'xlsx' }), `attendance-${month}.xlsx`).catch((err) => alert(err.message))}
           className="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors"
         >
           Excel
-        </a>
+        </button>
       </div>
     </div>
   );

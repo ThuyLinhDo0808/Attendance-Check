@@ -201,10 +201,12 @@ router.get('/audit/:log_id', async (req, res, next) => {
  */
 router.post('/checkin', async (req, res, next) => {
   try {
-    const { employee_code, qr_data } = req.body;
+    const { qr_data } = req.body;
+    // Employees can only check themselves in; the code comes from their token.
+    const employee_code = resolveActingCode(req.user, req.body.employee_code);
 
     if (!employee_code) {
-      return res.status(400).json({ success: false, message: 'Thiếu mã nhân viên' });
+      return res.status(403).json({ success: false, message: 'Bạn chỉ có thể điểm danh cho chính mình.' });
     }
 
     const now = new Date();
@@ -272,9 +274,10 @@ router.post('/checkin', async (req, res, next) => {
 
 router.post('/excuse', async (req, res, next) => {
   try {
-    const { employee_code, reason } = req.body;
-    
-    if (!employee_code) return res.status(400).json({ success: false, message: 'Thiếu mã nhân viên.' });
+    const { reason } = req.body;
+    const employee_code = resolveActingCode(req.user, req.body.employee_code);
+
+    if (!employee_code) return res.status(403).json({ success: false, message: 'Bạn chỉ có thể gửi giải trình cho chính mình.' });
     const safeReason = reason || ''; 
     const work_date = todayDate();
 

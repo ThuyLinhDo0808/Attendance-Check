@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { api } from './api';
+import { api, session } from './api';
 import { formatVND } from './utils/format';
 import AttendanceLogger from './components/AttendanceLogger.jsx';
 import CompanyAnalytics from './components/CompanyAnalytics.jsx';
@@ -25,6 +25,8 @@ import EvidenceManager from './components/EvidenceManager.jsx';
 import MapBuilder from './components/MapBuilder.jsx';
 import { useShortcuts, SHORTCUT_REGISTRY } from './hooks/useShortcuts';
 import CommandPalette from './components/CommandPalette.jsx';
+import Login from './components/Login.jsx';
+import AccountMenu from './components/AccountMenu.jsx';
 
 const MENU_GROUPS = [
   {
@@ -55,6 +57,15 @@ const MENU_GROUPS = [
 ];
 
 export default function App() {
+  const [user, setUser] = useState(() => (session.getToken() ? session.getUser() : null));
+
+  useEffect(() => session.subscribe(setUser), []);
+
+  if (!user) return <Login />;
+  return <Dashboard user={user} />;
+}
+
+function Dashboard({ user }) {
   const [activeTab, setActiveTab] = useState('logger');
   const [employees, setEmployees] = useState([]);
   const [employeesError, setEmployeesError] = useState(null);
@@ -187,6 +198,8 @@ export default function App() {
             </div>
           ))}
         </nav>
+
+        <AccountMenu user={user} />
 
         {/* Footer Sidebar */}
         <div className="px-6 py-5 border-t border-white/5 text-xs text-slate-400 bg-black/10">

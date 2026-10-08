@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { api } from '../api';
+import React, { useEffect, useState } from 'react';
+import { api, session } from '../api';
 import LiveOfficeMap from './LiveOfficeMap.jsx';
 import { PlusIcon, UserGroupIcon, MapIcon, PencilSquareIcon, CheckIcon, XMarkIcon, ClockIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
@@ -28,6 +28,54 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+
+  // Login accounts, keyed by employee_code → role.
+  const [accounts, setAccounts] = useState({});
+  const isOwner = session.getUser()?.role === 'owner';
+
+  async function loadAccounts() {
+    try {
+      const rows = await api.getAccounts();
+      setAccounts(Object.fromEntries(rows.map((a) => [a.employee_code.toUpperCase(), a.role])));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  async function handleSetPassword(emp) {
+    const hasAccount = !!accounts[emp.employee_code.toUpperCase()];
+    const password = window.prompt(
+      `${hasAccount ? 'Reset' : 'Create'} the app login for ${emp.name} (${emp.employee_code}).\nNew password (min 6 characters):`
+    );
+    if (!password) return;
+    setRowBusy(emp.id);
+    try {
+      await api.setAccountPassword(emp.employee_code, password);
+      await loadAccounts();
+      window.alert(`Password ${hasAccount ? 'reset' : 'set'} for ${emp.employee_code}. Share it with them privately.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function handleToggleAdmin(emp) {
+    const role = accounts[emp.employee_code.toUpperCase()];
+    setRowBusy(emp.id);
+    try {
+      await api.setAccountRole(emp.employee_code, role === 'admin' ? 'employee' : 'admin');
+      await loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRowBusy(null);
+    }
+  }
 
   function updateForm(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -174,6 +222,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
                       <th className="px-6 py-4">Employee Identity</th>
                       <th className="px-6 py-4">Auth Code</th>
                       <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">App Login</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -195,6 +244,7 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
                                 <option value="INACTIVE">INACTIVE</option>
                               </select>
                             </td>
+                            <td className="px-6 py-3" />
                             <td className="px-6 py-3 text-right space-x-2">
                               <button onClick={() => saveEdit(emp)} disabled={isBusy} className="text-xs font-bold text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 px-3 py-1.5 rounded-md disabled:opacity-50">Save</button>
                               <button onClick={() => setEditingId(null)} disabled={isBusy} className="text-xs font-bold text-slate-500 hover:underline">Cancel</button>
@@ -210,7 +260,24 @@ export default function EmployeeManager({ employees, onEmployeeAdded }) {
                           </td>
                           <td className={`px-6 py-4 font-mono text-xs font-semibold ${emp.status === 'INACTIVE' ? 'text-slate-400' : 'text-slate-600'}`}>{emp.employee_code}</td>
                           <td className="px-6 py-4"><StatusBadge status={emp.status} /></td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-6 py-4">
+                            {accounts[emp.employee_code.toUpperCase()] ? (
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-700">{accounts[emp.employee_code.toUpperCase()]}</span>
+                            ) : (
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">No login</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-3">
+                            {emp.status === 'ACTIVE' && accounts[emp.employee_code.toUpperCase()] !== 'owner' && (
+                              <button onClick={() => handleSetPassword(emp)} disabled={rowBusy === emp.id} className="text-[11px] font-bold uppercase tracking-wider text-slate-500 opacity-0 group-hover:opacity-100 hover:underline disabled:opacity-50">
+                                {accounts[emp.employee_code.toUpperCase()] ? 'Reset password' : 'Set password'}
+                              </button>
+                            )}
+                            {isOwner && ['employee', 'admin'].includes(accounts[emp.employee_code.toUpperCase()]) && (
+                              <button onClick={() => handleToggleAdmin(emp)} disabled={rowBusy === emp.id} className="text-[11px] font-bold uppercase tracking-wider text-slate-500 opacity-0 group-hover:opacity-100 hover:underline disabled:opacity-50">
+                                {accounts[emp.employee_code.toUpperCase()] === 'admin' ? 'Remove admin' : 'Make admin'}
+                              </button>
+                            )}
                             <button onClick={() => startEdit(emp)} className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 opacity-0 group-hover:opacity-100 hover:underline">Modify</button>
                           </td>
                         </tr>

@@ -158,6 +158,21 @@ CREATE TABLE settings (
 CREATE UNIQUE INDEX uq_settings_current_key ON settings (key) WHERE is_current;
 CREATE INDEX idx_settings_key ON settings (key);
 
+-- ------------------------------------------------------------
+-- User accounts (login)
+-- Keyed by employee_code (stable across SCD2 versions). Not dropped
+-- above so re-running this file keeps everyone's passwords. The owner
+-- account is created on server start from OWNER_PASSWORD.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_accounts (
+    employee_code   VARCHAR(50) PRIMARY KEY,
+    password_hash   TEXT NOT NULL,
+    role            VARCHAR(10) NOT NULL DEFAULT 'employee'
+                        CHECK (role IN ('employee', 'admin', 'owner')),
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Khởi tạo dữ liệu cài đặt mặc định[cite: 48]
 INSERT INTO settings (key, value, description, effective_start_date, is_current) VALUES
     ('workday_start_time', '08:30', 'Time of day after which a check-in counts as late (24h HH:MM)', NOW(), TRUE),

@@ -22,9 +22,8 @@ export default function ExcuseScreen() {
       }
 
       // 2. Gửi yêu cầu phân tích xuống Backend thực tế
-      const response = await fetch(`${BACKEND_URL}/attendance/excuse`, {
+      const response = await authFetch(`${BACKEND_URL}/attendance/excuse`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employee_code: empCode, reason: reason }),
       });
 
