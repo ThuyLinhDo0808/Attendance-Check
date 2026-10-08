@@ -253,7 +253,20 @@ npm run dev       # nodemon, auto-restarts on change
 ```
 
 The API listens on `http://localhost:4000` by default. Sanity check:
-`curl http://localhost:4000/api/health`.
+`curl http://localhost:4000/api/health` — it reports the API version,
+uptime and whether PostgreSQL is reachable (HTTP 503 when it isn't).
+
+Every response carries an `X-Request-Id` header, each request is logged as
+one JSON line (method, path, status, duration), and errors come back as
+`{ "error": "...", "code": "...", "request_id": "..." }`. Optional
+production settings in `backend/.env`:
+
+| Variable | Purpose |
+| --- | --- |
+| `CORS_ORIGINS` | Comma-separated list of allowed origins (unset = allow all). |
+| `TRUST_PROXY` | Proxy hops to trust (default `1`), `false` when not behind a proxy. |
+| `JSON_BODY_LIMIT` | Max JSON request size, default `1mb`. |
+| `NODE_ENV=production` | Hides internal error details from API responses. |
 
 ### Login and access control
 

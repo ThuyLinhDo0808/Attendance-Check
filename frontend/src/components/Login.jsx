@@ -24,52 +24,67 @@ export default function Login() {
     }
   }
 
+  const inputClass =
+    'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/15';
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-ledger-950 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm bg-white rounded-xl shadow-xl p-8 space-y-5">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900 leading-tight">
-            Attendance <span className="text-accent">&amp;</span> Fine Ledger
-          </h1>
-          <p className="text-xs text-slate-500 mt-1 font-medium">Sign in with your admin account.</p>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ledger-950 px-4">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(110,102,238,0.35),transparent_70%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(rgba(255,255,255,0.6)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.6)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
+
+      <div className="relative w-full max-w-sm animate-page-in">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-700 shadow-glow ring-1 ring-white/20">
+            <svg viewBox="0 0 24 24" className="h-6 w-6 text-white" fill="none" aria-hidden="true">
+              <path d="M6 5v14h12" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="16" cy="8.5" r="2" fill="currentColor" />
+            </svg>
+          </div>
+          <h1 className="mt-5 text-2xl font-semibold text-white">Welcome back</h1>
+          <p className="mt-1.5 text-sm text-slate-400">Sign in to Ledger · Attendance &amp; Fines</p>
         </div>
 
-        {error && (
-          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-            {error}
-          </div>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl bg-white p-7 shadow-2xl ring-1 ring-white/10">
+          {error && (
+            <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+              {error}
+            </div>
+          )}
 
-        <label className="block">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Employee code</span>
-          <input
-            autoFocus
-            autoComplete="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-700">Employee code</span>
+            <input
+              autoFocus
+              autoComplete="username"
+              placeholder="e.g. LINHDT15"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={inputClass}
+            />
+          </label>
 
-        <label className="block">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Password</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-slate-700">Password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className={inputClass}
+            />
+          </label>
 
-        <button
-          type="submit"
-          disabled={submitting || !username || !password}
-          className="w-full rounded-md bg-accent text-white text-sm font-bold py-2.5 hover:bg-indigo-600 disabled:opacity-50 transition"
-        >
-          {submitting ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={submitting || !username || !password}
+            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {submitting ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-xs text-slate-500">Admin dashboard · Employees use the mobile app</p>
+      </div>
     </div>
   );
 }

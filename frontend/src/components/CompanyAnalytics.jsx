@@ -13,10 +13,16 @@ import {
 } from 'recharts';
 import { api, downloadFile } from '../api';
 import { formatVND, formatBlocks, currentMonthValue, formatMonthLabel } from '../utils/format';
-import { ArrowDownIcon, PresentationChartLineIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowDownIcon,
+  PresentationChartLineIcon,
+  ExclamationTriangleIcon,
+  BanknotesIcon,
+  ClipboardDocumentListIcon,
+} from '@heroicons/react/24/outline';
 
 const CHART_FINE = '#ef4444'; // Đỏ cảnh báo cho cột vi phạm
-const CHART_ACCENT = '#4F5FEA'; // Xanh Indigo cho đường tiền phạt
+const CHART_ACCENT = '#5B4FE3'; // Xanh Indigo cho đường tiền phạt
 const CHART_GRID = '#f1f5f9';
 
 const TREND_RANGES = [
@@ -75,8 +81,8 @@ export default function CompanyAnalytics() {
     <div className="space-y-8 py-2">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
-            <PresentationChartLineIcon className="h-8 w-8 text-indigo-600"/>
+          <h2 className="page-title">
+            <PresentationChartLineIcon className="page-title-icon" />
             Analytics Dashboard
           </h2>
           <p className="text-sm text-slate-500 mt-2 font-medium">
@@ -172,13 +178,14 @@ export default function CompanyAnalytics() {
                       <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)} dx={10}/>
                       
                       <Tooltip 
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 12px 32px -8px rgb(15 23 42 / 0.18)', fontSize: 13 }}
+                        cursor={{ fill: 'rgba(91, 79, 227, 0.04)' }}
                         labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                       />
                       <Legend wrapperStyle={{ paddingTop: '20px', fontSize: '13px', fontWeight: 600, color: '#475569' }} />
                       
-                      <Bar yAxisId="left" dataKey="total_late_checkins" fill="#fca5a5" name="Lượt đi muộn" radius={[4, 4, 0, 0]} maxBarSize={50} />
-                      <Line yAxisId="right" type="monotone" dataKey="total_fine_collected" stroke={CHART_ACCENT} strokeWidth={4} dot={{ r: 5, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 7 }} name="Tiền phạt (VNĐ)" />
+                      <Bar yAxisId="left" dataKey="total_late_checkins" fill="#FDA4AF" name="Lượt đi muộn" radius={[6, 6, 0, 0]} maxBarSize={44} />
+                      <Line yAxisId="right" type="monotone" dataKey="total_fine_collected" stroke={CHART_ACCENT} strokeWidth={2.5} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6, strokeWidth: 0 }} name="Tiền phạt (VNĐ)" />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -215,27 +222,52 @@ function ExportButtons({ month }) {
   );
 }
 
+const SUMMARY_ICONS = {
+  alert: ExclamationTriangleIcon,
+  primary: BanknotesIcon,
+  neutral: ClipboardDocumentListIcon,
+};
+
 function SummaryCard({ label, value, subtext, tone = 'neutral', mono = false }) {
   const tones = {
-    alert: 'bg-red-50 border-red-100 text-red-900',
-    primary: 'bg-indigo-600 border-indigo-700 text-white shadow-lg shadow-indigo-600/20',
-    neutral: 'bg-white border-slate-200 text-slate-900'
-  };
-  
-  const subtextTones = {
-    alert: 'text-red-500',
-    primary: 'text-indigo-200',
-    neutral: 'text-slate-500'
+    alert: 'bg-white border-slate-200/80 text-slate-900',
+    primary:
+      'relative overflow-hidden border-indigo-700/40 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-800 text-white shadow-glow',
+    neutral: 'bg-white border-slate-200/80 text-slate-900',
   };
 
+  const iconTones = {
+    alert: 'bg-rose-50 text-rose-600 ring-rose-100',
+    primary: 'bg-white/15 text-white ring-white/20',
+    neutral: 'bg-slate-50 text-slate-600 ring-slate-200',
+  };
+
+  const subtextTones = {
+    alert: 'text-rose-600',
+    primary: 'text-indigo-100/80',
+    neutral: 'text-slate-500',
+  };
+
+  const Icon = SUMMARY_ICONS[tone];
+
   return (
-    <div className={`rounded-2xl border p-6 ${tones[tone]} flex flex-col justify-between`}>
-      <p className={`text-xs font-bold uppercase tracking-widest opacity-80 mb-4`}>{label}</p>
-      <div>
-          <p className={`text-4xl font-black tracking-tight ${mono ? 'font-mono-num' : ''}`}>
-            {value}
-          </p>
-          <p className={`text-xs font-semibold mt-2 ${subtextTones[tone]}`}>{subtext}</p>
+    <div className={`rounded-2xl border p-6 shadow-sm ${tones[tone]} flex flex-col justify-between`}>
+      {tone === 'primary' && (
+        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+      )}
+      <div className="relative flex items-center justify-between">
+        <p className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${tone === 'primary' ? 'text-indigo-100' : 'text-slate-500'}`}>
+          {label}
+        </p>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ring-1 ring-inset ${iconTones[tone]}`}>
+          <Icon className="h-[18px] w-[18px]" />
+        </span>
+      </div>
+      <div className="relative mt-5">
+        <p className={`font-display text-[2.125rem] leading-none font-semibold tracking-tight ${mono ? 'font-mono-num' : ''}`}>
+          {value}
+        </p>
+        <p className={`mt-2.5 text-xs font-medium ${subtextTones[tone]}`}>{subtext}</p>
       </div>
     </div>
   );

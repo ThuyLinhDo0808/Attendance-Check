@@ -55,6 +55,13 @@ export default function CommandPalette({ setActiveTab }) {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
     }, [paletteKey]);
 
+  // Lets other UI (e.g. the top-bar search button) open the palette.
+  useEffect(() => {
+    const open = () => setIsOpen(true);
+    window.addEventListener('open-command-palette', open);
+    return () => window.removeEventListener('open-command-palette', open);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     if (inputRef.current) inputRef.current.focus();

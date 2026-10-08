@@ -156,8 +156,8 @@ async function handleBatchCommit(e) {
       {/* Top Header */}
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
-            <ClipboardDocumentCheckIcon className="h-7 w-7 text-indigo-600" />
+          <h2 className="page-title">
+            <ClipboardDocumentCheckIcon className="page-title-icon" />
             Attendance Logger
           </h2>
           <p className="mt-1 text-sm text-slate-500 font-medium">

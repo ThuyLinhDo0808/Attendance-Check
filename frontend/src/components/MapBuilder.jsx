@@ -240,8 +240,8 @@ export default function MapBuilder() {
     <div className="space-y-6 py-2">
       <header className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 flex items-center gap-3">
-             <MapIcon className="h-8 w-8 text-indigo-600"/>
+          <h2 className="page-title">
+             <MapIcon className="page-title-icon" />
              Spatial Map Builder
           </h2>
           <p className="text-sm font-medium text-slate-500 mt-2">
