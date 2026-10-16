@@ -1,5 +1,5 @@
 # Render Blueprint: one-click deploy of the API, its Postgres database and
-# the admin web dashboard. In Render: New > Blueprint > pick this repo.
+# the web app (admin dashboard + employee app). In Render: New > Blueprint > pick this repo.
 services:
   - type: web
     name: attendance-check-api

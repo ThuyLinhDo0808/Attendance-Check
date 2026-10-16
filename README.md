@@ -1,12 +1,11 @@
 # Attendance & Fine Management System
 
-An internal, single-admin web app and mobile companion for logging employee attendance, tracking lateness, calculating cash penalties, and managing excuse requests with AI assistance.
+An internal web app for logging employee attendance, tracking lateness, calculating cash penalties, and managing excuse requests with AI assistance.
 
 ```
 attendance-app/
 ├── backend/     Node.js + Express API, PostgreSQL access
-└── frontend/    React + Vite + Tailwind admin dashboard
-└── mobile/      Expo React Native mobile app for QR check-in & excuses
+└── frontend/    React + Vite + Tailwind web app: admin dashboard + employee app
 ```
 
 ## Audit-safe history (SCD2)
@@ -65,8 +64,8 @@ Two audit endpoints make this queryable directly:
   business trip) — check-in becomes optional and no fine is charged,
   regardless of what time was recorded.
 
-### 2. AI Excuse & Review Workflow (Mobile + Web)
-- **Mobile Submissions**: Employees can submit late arrival or absence excuses directly from their mobile companion app.
+### 2. AI Excuse & Review Workflow
+- **Employee Submissions**: Employees can submit late arrival or absence excuses directly from the employee web app.
 - **AI-Powered Analysis**: The backend automatically parses reasons against keyword filters (e.g., heavy rain, broken vehicle, illness) to generate suggestions (`ai_suggestion` like *Đề xuất Duyệt* or *Cần xem xét*) and stores requests in `excuse_requests` under a `PENDING` status.
 - **Web Admin "Pending Excuses" Tab**:
   - Dedicated screen for admins to review all pending staff explanations.
@@ -197,23 +196,33 @@ You never need to touch the database or restart the app to correct a log:
 - **Employee Fine Sheet tab** — any employee with `times_late > 0` gets a
   highlighted row; clicking opens their full check-in history.
 
-## Mobile App Companion (Expo React Native)
+## Employee web app
 
-The project includes a companion mobile application designed for employees to interact with the system on the go. 
+Employees use the same website as the admins: they sign in with their
+employee code and get a phone-friendly app instead of the dashboard.
+Nothing to install.
 
-### Core Mobile Features:
-- **QR Code Check-in**: 
-  - Employees can open the mobile app and navigate to the **QR Check-in** tab to scan the office QR code.
-  - **Anti-Spam Safeguards (`useRef`)**: The scanner utilizes a synchronization reference hook (`useRef`) to instantly lock the camera matrix upon the first successful read. This completely eliminates multi-scan loops or accidental duplicate check-in triggers before the app transitions screens.
-- **AI Excuse & Late Reporting**:
-  - If an employee checks in late or faces an emergency (e.g., severe weather, traffic accidents, vehicle breakdown), they can use the **Excuse Report** tab to type and submit a explanation.
-  - The backend AI parses the text description to assign an automated recommendation status (`ai_suggestion`), routing it straight to the web admin's pending queue for final approval or rejection.
+- **QR check-in**: the admin's **QR Check-in** screen at the entrance shows
+  a QR code that is a link (`/checkin?t=…`) carrying a token signed by the
+  server, refreshed every 30 seconds and valid for 2 minutes
+  (`CHECKIN_QR_TTL_SECONDS`). Employees scan it with the phone camera and
+  open the link (sign in if asked) — the check-in is sent automatically.
+  They can also scan from inside the app with **Điểm danh → Mở camera**.
+  The API rejects check-ins without a valid, unexpired token, so nobody
+  can check in without seeing the screen.
+- **Excuse report**: the **Giải trình** tab sends a reason for being late;
+  the backend assigns an automated recommendation (`ai_suggestion`) and it
+  lands in the admin's **Pending Excuses** queue.
+- **Profile**: the **Hồ sơ** tab shows the employee's lateness count, fines
+  and recent check-ins.
+
+The camera only works over HTTPS (or `localhost`); the Render deployment is
+HTTPS.
 
 ## Prerequisites
 
 - Node.js 18+
 - PostgreSQL 13+ running locally (or a connection string to a hosted instance)
-- **Expo Go** app installed on your smartphone (iOS/Android)
 
 <br>
 <br>
@@ -285,7 +294,7 @@ Roles:
 |------|-----|--------|
 | owner | LinhDT15 (`OWNER_EMPLOYEE_CODE`) | Everything, including making other employees admins |
 | admin | Granted by the owner | The whole web dashboard; set or reset employee passwords |
-| employee | Everyone else with a password | Mobile app only: check in, send an excuse, see their own stats |
+| employee | Everyone else with a password | Employee web app only: check in, send an excuse, see their own stats |
 
 Employees can't sign in until an admin sets their password in
 **Employee Management → Set password**. Deactivating an employee or
@@ -308,43 +317,15 @@ Open `http://localhost:5173`. Vite's dev server proxies `/api/*` to
 cd frontend
 npm run build      # outputs static files to frontend/dist
 ```
-## 5. Running Mobile App (Expo)
-
-- Open a new terminal tab and navigate to your mobile app dirrectory.
-
-- Install mobile dependencies:
-
-```bash
-npm install
-```
-
-- Configure the server address:
-  + The app reads the API address from `EXPO_PUBLIC_API_URL` (see `mobile/constants/api.ts`). Copy `mobile/.env.example` to `mobile/.env` and set it:
-
-  ``` bash
-  # hosted backend
-  EXPO_PUBLIC_API_URL=https://attendance-check-api.onrender.com/api
-  # or a backend on your computer (same Wi-Fi)
-  EXPO_PUBLIC_API_URL=http://YOUR_LOCAL_IP:4000/api
-  ```
-
-- Start the mobile app:
-
-``` bash
-  npx expo start
-```
-
-- Scan the QR code using the camerea (IOS)/ Expo Go app (Android) on your physical device.
-
 ## Deploying online (Render)
 
-`render.yaml` describes the whole stack: the API (built from `backend/Dockerfile`, which includes Python + OpenCV for blueprint analysis), a PostgreSQL database and the admin dashboard as a static site.
+`render.yaml` describes the whole stack: the API (built from `backend/Dockerfile`, which includes Python + OpenCV for blueprint analysis), a PostgreSQL database and the web app (admin dashboard + employee app) as a static site.
 
 1. In Render: **New > Blueprint**, pick this repository and apply.
 2. Load the schema once from your machine, using the database's *External* URL:
    `cd backend && DATABASE_URL=<external url> DATABASE_SSL=true npm run seed`
    (this drops and recreates the tables, so only run it on a fresh database).
-3. If Render gives the API a different URL than `attendance-check-api.onrender.com`, update `EXPO_PUBLIC_API_URL` for the mobile app and `VITE_API_BASE_URL` in `render.yaml`.
+3. If Render gives the API a different URL than `attendance-check-api.onrender.com`, update `VITE_API_BASE_URL` in `render.yaml`.
 
 Free Render services sleep after inactivity (the first request takes ~1 minute to wake), and the free database expires after 30 days; use a paid plan for real use.
 
@@ -365,8 +346,9 @@ Free Render services sleep after inactivity (the first request takes ~1 minute t
 | POST   | `/api/attendance/log` | Log/update one day's attendance (upsert on employee_code + date). Body: `employee_code`, `work_date`, `check_in_time?`, `check_out_time?`, `note?`, `is_exempt?` |
 | GET    | `/api/attendance` | List logs (`?employee_code=`, `?month=YYYY-MM`, `?date=YYYY-MM-DD`, `?late_only=true`) |
 | DELETE | `/api/attendance/:id` | Remove a log entry |
-| POST   | `/api/attendance/checkin` | Mobile QR check-in endpoint JS
-| POST   | `/api/attendance/excuse` | Submit mobile excuse report  
+| GET    | `/api/attendance/qr-token` | Signed token for the office QR code (admin) |
+| POST   | `/api/attendance/checkin` | QR check-in (`{ qr_data }`, must be a valid QR token)
+| POST   | `/api/attendance/excuse` | Submit an excuse (`{ reason }`)  
 | GET     | `/api/attendance/pending-excuses` | Fetch pending excuse requests for admin
 | POST    | `/api/attendance/resolve-excuse` | Approve or reject an excuse request
 | POST    | `/api/attendance/upload-evidence` | Upload media via OAuth2, dynamically rename by date, and bulk-tag multiple log IDs.

@@ -35,6 +35,7 @@ import CommandPalette from './components/CommandPalette.jsx';
 import { useApiHealth } from './hooks/useApiHealth';
 import Login from './components/Login.jsx';
 import AccountMenu from './components/AccountMenu.jsx';
+import EmployeeApp from './components/EmployeeApp.jsx';
 
 const MENU_GROUPS = [
   {
@@ -97,6 +98,11 @@ export default function App() {
   useEffect(() => session.subscribe(setUser), []);
 
   if (!user) return <Login />;
+  // Employees only get the employee web app; admins see it too when they
+  // open a check-in link from the office QR code.
+  if (user.role === 'employee' || window.location.pathname.startsWith('/checkin')) {
+    return <EmployeeApp user={user} />;
+  }
   return <Dashboard user={user} />;
 }
 

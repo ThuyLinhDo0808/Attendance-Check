@@ -1,41 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { QrCodeIcon } from '@heroicons/react/24/outline';
+import { api } from '../api';
+
+const REFRESH_SECONDS = 30;
 
 export default function AdminQRCode() {
   const [qrData, setQrData] = useState('');
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(REFRESH_SECONDS);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Hàm sinh dữ liệu mới
-    const generateNewQR = () => {
-      // Đóng gói dữ liệu bảo mật (bao gồm tên văn phòng và thời gian hiện tại)
-      const payload = JSON.stringify({
-        location: 'HQ_HANOI',
-        timestamp: Date.now(),
-        secret_token: 'viettinbank_auth_xyz'
-      });
-      setQrData(payload);
-      setTimeLeft(30); // Reset đồng hồ đếm ngược
+    let cancelled = false;
+
+    // The server signs a short-lived token; the QR code is a link to the
+    // employee web app carrying it, so employees can scan it with the
+    // phone camera or from inside the web app.
+    const generateNewQR = async () => {
+      try {
+        const { token } = await api.getCheckinQrToken();
+        if (cancelled) return;
+        setQrData(`${window.location.origin}/checkin?t=${encodeURIComponent(token)}`);
+        setError(null);
+      } catch (err) {
+        if (!cancelled) setError(err.message);
+      }
     };
 
     generateNewQR();
 
-    // Cập nhật đồng hồ đếm ngược mỗi giây
+    const refresh = setInterval(() => {
+      generateNewQR();
+      setTimeLeft(REFRESH_SECONDS);
+    }, REFRESH_SECONDS * 1000);
     const countdown = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          generateNewQR();
-          return 30;
-        }
-        return prev - 1;
-      });
+      setTimeLeft((prev) => Math.max(prev - 1, 1));
     }, 1000);
 
-    return () => clearInterval(countdown);
+    return () => {
+      cancelled = true;
+      clearInterval(refresh);
+      clearInterval(countdown);
+    };
   }, []);
 
-  const progress = (timeLeft / 30) * 100;
+  const progress = (timeLeft / REFRESH_SECONDS) * 100;
 
   return (
     <div className="space-y-6">
@@ -45,7 +54,7 @@ export default function AdminQRCode() {
           QR Check-in
         </h2>
         <p className="mt-2 text-sm font-medium text-slate-500">
-          Display this screen at the entrance. Employees scan it with the mobile app to check in.
+          Display this screen at the entrance. Employees scan it with their phone camera (or the employee web app) to check in.
         </p>
       </header>
 
@@ -57,7 +66,13 @@ export default function AdminQRCode() {
           </span>
           Live · Check-in open
         </span>
-        <p className="mt-3 text-sm text-slate-500">Yêu cầu nhân viên mở App để quét mã này</p>
+        <p className="mt-3 text-sm text-slate-500">Nhân viên dùng camera điện thoại quét mã này để điểm danh</p>
+
+        {error && (
+          <p role="alert" className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+            Không tạo được mã QR: {error}
+          </p>
+        )}
 
         {/* Khung chứa mã QR */}
         <div className="relative mt-6 rounded-2xl bg-gradient-to-br from-indigo-50 via-white to-indigo-50 p-4 ring-1 ring-indigo-100">
@@ -66,7 +81,7 @@ export default function AdminQRCode() {
               <QRCodeCanvas
                 value={qrData}
                 size={260}
-                level={"H"} // Mức độ sửa lỗi cao, dễ quét
+                level="M" // Link dài: mức M cho mã thưa hơn, dễ quét hơn
                 includeMargin={true}
                 fgColor="#0E1527"
               />

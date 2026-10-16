@@ -145,10 +145,53 @@ test('check-in uses the code from the token', async () => {
   };
   const res = await call('POST', '/api/attendance/checkin', {
     token: tokenFor('employee', 'NV001'),
-    body: { qr_data: 'x' },
+    body: { qr_data: auth.signCheckinToken() },
   });
   assert.equal(res.status, 404); // stub DB: employee lookup finds nothing
   assert.deepEqual(seen[0], ['NV001']);
+});
+
+test('check-in requires a valid QR token from the office screen', async () => {
+  const token = tokenFor('employee', 'NV001');
+  const jwt = require('jsonwebtoken');
+  const expired = jwt.sign({ typ: 'checkin', exp: Math.floor(Date.now() / 1000) - 10 }, 'test-secret');
+  const forged = jwt.sign({ typ: 'checkin' }, 'not-the-secret');
+
+  for (const qr_data of [undefined, '', 'x', '{"secret_token":"viettinbank_auth_xyz"}', expired, forged, token]) {
+    const res = await call('POST', '/api/attendance/checkin', { token, body: { qr_data } });
+    assert.equal(res.status, 400, String(qr_data));
+  }
+});
+
+test('check-in accepts the QR link as well as the bare token', async () => {
+  const qrLink = `https://example.com/checkin?t=${encodeURIComponent(auth.signCheckinToken())}`;
+  const res = await call('POST', '/api/attendance/checkin', {
+    token: tokenFor('employee', 'NV001'),
+    body: { qr_data: qrLink },
+  });
+  assert.equal(res.status, 404); // passed the QR check; stub DB has no such employee
+});
+
+test('a QR token cannot be used as a login session', async () => {
+  const res = await call('GET', '/api/auth/me', { token: auth.signCheckinToken() });
+  assert.equal(res.status, 401);
+});
+
+test('only admins can get a check-in QR token', async () => {
+  const employee = await call('GET', '/api/attendance/qr-token', { token: tokenFor('employee') });
+  assert.equal(employee.status, 403);
+
+  const admin = await call('GET', '/api/attendance/qr-token', { token: tokenFor('admin', 'NV050') });
+  assert.equal(admin.status, 200);
+  assert.ok(auth.verifyCheckinToken(admin.body.token));
+});
+
+test('an excuse needs a reason', async () => {
+  const res = await call('POST', '/api/attendance/excuse', {
+    token: tokenFor('employee', 'NV001'),
+    body: { reason: '   ' },
+  });
+  assert.equal(res.status, 400);
 });
 
 test('login requires the right password', async () => {
