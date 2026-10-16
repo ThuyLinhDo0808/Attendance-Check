@@ -34,7 +34,7 @@ app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 app.disable('x-powered-by');
 
 // CORS_ORIGINS is an optional comma-separated allowlist; unset keeps the
-// previous allow-all behaviour so local dev and the mobile app still work.
+// previous allow-all behaviour so local dev keeps working.
 const allowedOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((o) => o.trim())
@@ -67,7 +67,7 @@ app.get('/api/health', async (req, res) => {
 // Login is public; everything below needs a valid token.
 app.use('/api/auth', authRouter);
 
-// The few endpoints the mobile app calls are open to every signed-in
+// The few endpoints the employee web app calls are open to every signed-in
 // employee (the handlers restrict them to the caller's own data). The rest
 // of the API is the admin dashboard and needs the admin or owner role.
 const EMPLOYEE_ENDPOINTS = [

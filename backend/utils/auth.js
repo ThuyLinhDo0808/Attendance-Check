@@ -12,8 +12,8 @@ const pool = require('../db/pool');
  *              the admin role.
  *   admin    — can use the whole web dashboard and manage employee
  *              passwords, but cannot create other admins/owners.
- *   employee — mobile app only: check in, submit an excuse, view their
- *              own stats.
+ *   employee — the employee web app only: check in, submit an excuse,
+ *              view their own stats.
  */
 
 const ROLES = ['employee', 'admin', 'owner'];
@@ -62,7 +62,38 @@ function signToken({ employee_code, role, name }) {
 
 function verifyToken(token) {
   const payload = jwt.verify(token, jwtSecret);
+  // A check-in QR token is signed with the same secret but is not a login.
+  if (payload.typ === CHECKIN_TOKEN_TYPE || !payload.sub) throw new Error('Not a session token');
   return { employee_code: payload.sub, role: payload.role, name: payload.name };
+}
+
+// --- Check-in QR codes --------------------------------------------------
+// The office QR code carries a short-lived token signed by the server, so a
+// check-in proves the employee saw the screen at the entrance recently.
+// The admin screen fetches a fresh one every 30 seconds; the TTL leaves time
+// to sign in after scanning.
+const CHECKIN_TOKEN_TYPE = 'checkin';
+const CHECKIN_TOKEN_TTL_SECONDS = Number(process.env.CHECKIN_QR_TTL_SECONDS) || 120;
+
+function signCheckinToken() {
+  return jwt.sign({ typ: CHECKIN_TOKEN_TYPE }, jwtSecret, { expiresIn: CHECKIN_TOKEN_TTL_SECONDS });
+}
+
+/**
+ * Accepts what the employee scanned: either the bare token or the
+ * check-in link that wraps it (https://…/checkin?t=<token>).
+ * Returns true only for a valid, unexpired check-in token.
+ */
+function verifyCheckinToken(qrData) {
+  if (typeof qrData !== 'string' || !qrData.trim()) return false;
+  let token = qrData.trim();
+  const match = token.match(/[?&]t=([^&#]+)/);
+  if (match) token = decodeURIComponent(match[1]);
+  try {
+    return jwt.verify(token, jwtSecret).typ === CHECKIN_TOKEN_TYPE;
+  } catch {
+    return false;
+  }
 }
 
 function hasRole(user, minRole) {
@@ -178,6 +209,9 @@ module.exports = {
   validatePassword,
   signToken,
   verifyToken,
+  CHECKIN_TOKEN_TTL_SECONDS,
+  signCheckinToken,
+  verifyCheckinToken,
   hasRole,
   requireAuth,
   requireRole,

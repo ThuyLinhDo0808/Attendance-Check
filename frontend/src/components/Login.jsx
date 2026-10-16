@@ -13,9 +13,6 @@ export default function Login() {
     setSubmitting(true);
     try {
       const result = await api.login(username.trim(), password);
-      if (result.data.role === 'employee') {
-        throw new Error('Tài khoản nhân viên chỉ dùng được trên ứng dụng di động.');
-      }
       session.save(result.token, result.data);
     } catch (err) {
       setError(err.message);
@@ -83,7 +80,7 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-slate-500">Admin dashboard · Employees use the mobile app</p>
+        <p className="mt-6 text-center text-xs text-slate-500">Nhân viên đăng nhập bằng mã nhân viên để điểm danh</p>
       </div>
     </div>
   );

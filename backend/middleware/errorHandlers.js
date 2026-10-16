@@ -1,4 +1,4 @@
-// Error responses always keep the `error` message the dashboard and mobile
+// Error responses always keep the `error` message the dashboard and employee
 // app already read, and add a stable `code` plus the request id so a
 // failure the admin reports can be matched to its log line.
 

@@ -4,7 +4,7 @@ const { calculateLateness } = require('../utils/fineCalculator');
 const { getSettings } = require('../utils/settingsCache');
 const { triggerAutoSync } = require('../utils/googleSheetsSync');
 const { todayDate, currentTime } = require('../utils/clock');
-const { resolveActingCode } = require('../utils/auth');
+const { resolveActingCode, signCheckinToken, verifyCheckinToken, CHECKIN_TOKEN_TTL_SECONDS } = require('../utils/auth');
 const multer = require('multer');
 const fs = require('fs');
 const { uploadFileToDrive, getOrCreateFolder, getFilesInFolder, zipAndUploadToDrive, deleteDriveFiles } = require('../utils/googleDriveService');
@@ -197,17 +197,32 @@ router.get('/audit/:log_id', async (req, res, next) => {
 });
 
 /**
+ * GET /api/attendance/qr-token (admin)
+ * A short-lived signed token for the QR code shown at the office entrance.
+ */
+router.get('/qr-token', (req, res) => {
+  res.json({ token: signCheckinToken(), expires_in: CHECKIN_TOKEN_TTL_SECONDS });
+});
+
+/**
  * POST /api/attendance/checkin
- * Endpoint dành cho App Mobile quét mã QR.
+ * Body: { qr_data } — what the employee scanned from the office QR code.
+ * Called by the employee web app.
  */
 router.post('/checkin', async (req, res, next) => {
   try {
-    const { qr_data } = req.body;
+    const { qr_data } = req.body || {};
     // Employees can only check themselves in; the code comes from their token.
-    const employee_code = resolveActingCode(req.user, req.body.employee_code);
+    const employee_code = resolveActingCode(req.user, req.body?.employee_code);
 
     if (!employee_code) {
       return res.status(403).json({ success: false, message: 'Bạn chỉ có thể điểm danh cho chính mình.' });
+    }
+    if (!verifyCheckinToken(qr_data)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mã QR không hợp lệ hoặc đã hết hạn. Vui lòng quét lại mã đang hiển thị tại văn phòng.',
+      });
     }
 
     const now = new Date();
@@ -275,11 +290,12 @@ router.post('/checkin', async (req, res, next) => {
 
 router.post('/excuse', async (req, res, next) => {
   try {
-    const { reason } = req.body;
-    const employee_code = resolveActingCode(req.user, req.body.employee_code);
+    const { reason } = req.body || {};
+    const employee_code = resolveActingCode(req.user, req.body?.employee_code);
 
     if (!employee_code) return res.status(403).json({ success: false, message: 'Bạn chỉ có thể gửi giải trình cho chính mình.' });
-    const safeReason = reason || ''; 
+    const safeReason = typeof reason === 'string' ? reason.trim() : '';
+    if (!safeReason) return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do.' });
     const work_date = todayDate();
 
     const lowerReason = safeReason.toLowerCase();

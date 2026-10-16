@@ -195,6 +195,13 @@ export const api = {
     return res.json();
   },  
 
+  // Employee web app
+  getCheckinQrToken: () => request('/attendance/qr-token'),
+  checkIn: (qr_data) =>
+    request('/attendance/checkin', { method: 'POST', body: JSON.stringify({ qr_data }) }),
+  submitExcuse: (reason) =>
+    request('/attendance/excuse', { method: 'POST', body: JSON.stringify({ reason }) }),
+
   getPendingExcuses: () => request('/attendance/pending-excuses'),
   resolveExcuse: (payload) => request('/attendance/resolve-excuse', { method: 'POST', body: JSON.stringify(payload) }),
 

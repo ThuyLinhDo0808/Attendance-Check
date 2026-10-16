@@ -122,7 +122,7 @@ CREATE TABLE office_layouts (
 );
 
 -- ------------------------------------------------------------
--- Excuse requests submitted from the mobile app
+-- Excuse requests submitted from the employee web app
 -- ------------------------------------------------------------
 CREATE TABLE excuse_requests (
     id              SERIAL PRIMARY KEY,
