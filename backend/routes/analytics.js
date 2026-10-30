@@ -27,32 +27,58 @@ router.get('/monthly', async (req, res, next) => {
       [monthDate]
     );
 
-    // Grouped by employee_code (the stable SCD2 business key), NOT
-    // employee_id — a mid-month department transfer changes employee_id
-    // but must still roll up as ONE person, not fragment into two rows.
-    // Joined to the CURRENT employee version for display name/department,
-    // since a leaderboard is a present-day view of "who is late".
-    const leaderboardPromise = pool.query(
+    // One row per person, grouped by employee_code (the stable SCD2
+    // business key), NOT employee_id — a mid-month department transfer
+    // changes employee_id but must still roll up as ONE person. Joined to
+    // the CURRENT employee version for the display name.
+    //
+    // Everyone who was on staff that month is included, even with zero
+    // logs, so "who was late the least" can name the punctual people too.
+    // Inactive employees only appear if they have logs that month, and
+    // people who joined after the month are left out.
+    const membersPromise = pool.query(
       `SELECT
          e.employee_code,
          e.name,
-         COUNT(*) FILTER (WHERE al.minutes_late > 0)  AS times_late,
-         COALESCE(SUM(al.minutes_late), 0)             AS total_minutes_late,
-         COALESCE(SUM(al.fine_blocks), 0)              AS total_fine_blocks,
-         COALESCE(SUM(al.total_fine), 0)               AS total_fine
-       FROM attendance_logs al
-       JOIN employees e ON e.employee_code = al.employee_code AND e.is_current = TRUE
-       WHERE date_trunc('month', al.work_date) = date_trunc('month', $1::date)
-       GROUP BY e.employee_code, e.name
-       HAVING COUNT(*) FILTER (WHERE al.minutes_late > 0) > 0
-       ORDER BY times_late DESC, total_minutes_late DESC`,
+         e.status,
+         COUNT(al.id)                                    AS days_logged,
+         COUNT(al.id) FILTER (WHERE al.minutes_late > 0) AS times_late,
+         COUNT(al.id) FILTER (WHERE al.is_exempt)        AS exempt_days,
+         COALESCE(SUM(al.minutes_late), 0)               AS total_minutes_late,
+         COALESCE(SUM(al.fine_blocks), 0)                AS total_fine_blocks,
+         COALESCE(SUM(al.total_fine), 0)                 AS total_fine
+       FROM employees e
+       LEFT JOIN attendance_logs al
+         ON al.employee_code = e.employee_code
+        AND date_trunc('month', al.work_date) = date_trunc('month', $1::date)
+       WHERE e.is_current = TRUE
+         AND EXISTS (
+           SELECT 1 FROM employees v
+            WHERE v.employee_code = e.employee_code
+              AND v.effective_start_date < date_trunc('month', $1::date) + INTERVAL '1 month'
+         )
+       GROUP BY e.employee_code, e.name, e.status
+       HAVING e.status = 'ACTIVE' OR COUNT(al.id) > 0
+       ORDER BY times_late DESC, total_minutes_late DESC, e.name`,
       [monthDate]
     );
 
-    const [summaryResult, leaderboardResult] = await Promise.all([
+    const [summaryResult, membersResult] = await Promise.all([
       summaryPromise,
-      leaderboardPromise,
+      membersPromise,
     ]);
+
+    const members = membersResult.rows.map((r) => ({
+      employee_code: r.employee_code,
+      name: r.name,
+      status: r.status,
+      days_logged: Number(r.days_logged),
+      times_late: Number(r.times_late),
+      exempt_days: Number(r.exempt_days),
+      total_minutes_late: Number(r.total_minutes_late),
+      total_fine_blocks: Number(r.total_fine_blocks),
+      total_fine: Number(r.total_fine),
+    }));
 
     res.json({
       month,
@@ -60,13 +86,10 @@ router.get('/monthly', async (req, res, next) => {
       total_fine_collected: Number(summaryResult.rows[0].total_fine_collected),
       total_logs: Number(summaryResult.rows[0].total_logs),
       total_minutes_late: Number(summaryResult.rows[0].total_minutes_late),
-      leaderboard: leaderboardResult.rows.map((r) => ({
-        ...r,
-        times_late: Number(r.times_late),
-        total_minutes_late: Number(r.total_minutes_late),
-        total_fine_blocks: Number(r.total_fine_blocks),
-        total_fine: Number(r.total_fine),
-      })),
+      // Everyone on staff that month, worst first.
+      members,
+      // Only the people who were late at least once (kept for existing callers).
+      leaderboard: members.filter((m) => m.times_late > 0),
     });
   } catch (err) {
     next(err);
