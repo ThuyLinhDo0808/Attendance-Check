@@ -12,6 +12,7 @@ import {
   Legend
 } from 'recharts';
 import { api, downloadFile } from '../api';
+import MemberStats from './MemberStats.jsx';
 import { formatVND, formatBlocks, currentMonthValue, formatMonthLabel } from '../utils/format';
 import {
   ArrowDownIcon,
@@ -70,12 +71,10 @@ export default function CompanyAnalytics() {
     return () => { cancelled = true; };
   }, [trendMonths]);
 
-  const lateWorkers = data?.leaderboard || [];
   const trendChartData = (trends || []).map((t) => ({
     ...t,
     monthLabel: formatMonthLabel(t.month).replace(/\s\d{4}$/, ''), 
   }));
-  const barChartData = lateWorkers.slice(0, 12); 
 
   return (
     <div className="space-y-8 py-2">
@@ -138,6 +137,8 @@ export default function CompanyAnalytics() {
                 tone="neutral"
               />
             </div>
+
+            <MemberStats members={data.members} />
 
             {/* Biểu đồ Trục kép (Dual-Axis) */}
             <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

@@ -191,8 +191,10 @@ You never need to touch the database or restart the app to correct a log:
 - **Attendance Logger tab** — a live "Late today" panel lists every employee
   already logged as late for the selected date, updated the moment a new
   log is saved.
-- **Company Analytics tab** — a full table of every employee with at least
-  one late check-in in the selected month, sorted worst-first.
+- **Company Analytics tab** — a **Thống kê thành viên** section for the
+  selected month: who was late / fined the most and the least, a top-10
+  chart, and a sortable table of everyone on staff (including people who
+  were never late).
 - **Employee Fine Sheet tab** — any employee with `times_late > 0` gets a
   highlighted row; clicking opens their full check-in history.
 
